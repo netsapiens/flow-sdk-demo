@@ -326,7 +326,7 @@ module.exports = (_env, argv) => {
 
 ```tsx
 import type { FlowContext } from '@netsapiens/flow-sdk';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo } from 'react';
 import { FlowContextProvider, useRemoteApp } from '@netsapiens/flow-sdk';
 
 import HeaderButton from './extensions/HeaderButton';
@@ -340,32 +340,25 @@ declare const __MF_NAME__: string;
 export default function App(flowContext: FlowContext) {
   const { sdk } = useRemoteApp(flowContext, __MF_NAME__);
 
-  // The host rebuilds `flowContext` on every colour-mode change, `ui`
-  // included — it keeps one frozen surface per mode. This ref is what lets the
-  // wrapper below see that: read the LATEST context at render instead of closing
-  // over the first one.
-  //
-  // Do not drop it. The wrapper is memoized with empty deps to keep a STABLE
-  // component identity (re-creating it would unmount the page on every render),
-  // and a closure over `flowContext` would therefore pin the page to the
-  // context captured on first paint — `theme` would keep updating while
-  // `ui.theme`/`ui.styles` stayed on the mode active when the app loaded. That
-  // combination is the single most common theming bug in a Flow remote.
-  const contextRef = useRef(flowContext);
-  contextRef.current = flowContext;
-
-  // Wrap the page once in FlowContextProvider so it reads a live, reactive
-  // context (theme/locale/ui) via useFlowContext() — no prop drilling.
+  // The wrapper below is memoized with empty deps so the page keeps a STABLE
+  // component identity (re-creating it would unmount the page on every
+  // render). That freezes `flowContext` at first paint, and that is fine:
+  // FlowContextProvider keeps `theme`, `locale`, `managing` and `ui` live from
+  // host events (`ui` rides on `theme:changed`), so the page reads the current
+  // colour mode through useFlowContext(). Do not add a ref to "refresh" the
+  // context; the provider already does it, and a workaround here would hide a
+  // regression there.
   const MainPageRoute = useMemo(
     () =>
       function MainPageRoute() {
         return (
-          <FlowContextProvider context={contextRef.current}>
+          <FlowContextProvider context={flowContext}>
             <MainPage />
           </FlowContextProvider>
         );
       },
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [], // stable identity prevents the host from remounting the page
   );
 
   useEffect(() => {
@@ -1324,7 +1317,7 @@ host UI kit finds out what it is missing.
 - **The federation name is single-sourced.** `<module-scope>` (camelCase) is now hardcoded in exactly one place — `MODULE_NAME` in `webpack.config.js`, which `MF_NAME` overrides for a local run — and flows into the app via `DefinePlugin` (`__MF_NAME__`), which `useRemoteApp(flowContext, __MF_NAME__)` consumes. Do **not** also hardcode the module name in `App.tsx`. `<module-scope>` must be a valid JS identifier (camelCase, no dashes); the SDK/host derive the kebab `<app-id>` from it, which is what you use for route ids/paths (`<app-id>.main`, `/apps/<app-id>`) and the registration's `capabilities.routes`.
 - Don't pull in MUI as a direct dependency — every UI component comes from `flowContext.ui`. They're wrapped in the host MUI `ThemeProvider`, so they re-theme on a live dark/light toggle for free — which is exactly why hand-rolled markup colored from raw tokens drifts out of sync.
 - **RULE 1 is the one to re-read before writing any JSX — see the top of this skill, and "What's in the kit".** Every visible element comes from `ui.*` / `ui.templates.*`; colours go in `sx` as palette paths. Never paint from `ui.theme.colors` or `ui.styles` — they are per-mode snapshots, so hand-rolled markup silently stops following the dark/light toggle, and `getThemeTokens`/`getUIStyles` are host-internal so you cannot recompute fresh ones. `useTheme() → { theme }` is the only reactive mode signal, and it is for _picking_ a value you own. In standalone extensions (outside the provider) call `useTheme(context.eventBus, context.theme)`. Full mechanism in "Theming & dark/light mode".
-- **Keep the `contextRef` in `App.tsx`.** The memoized page wrapper must read `contextRef.current`, not close over `flowContext`. Closing over it pins `ui` to the colour mode active at first paint while `theme` keeps updating — the most common theming bug in a Flow remote, and invisible until someone toggles dark mode.
+- **Close over `flowContext` in the memoized page wrapper; do not add a `contextRef`.** The wrapper's empty deps freeze the context at first paint, and `FlowContextProvider` keeps `theme`, `locale`, `managing` and `ui` live from host events, so pages still follow the dark/light toggle. A ref that re-reads the context hides a provider regression instead of exposing it. On a host too old to send `ui` with `theme:changed`, `ui.theme`/`ui.styles` stay on the first-paint mode, which is one more reason to build from `ui.*` components and palette paths rather than painting from tokens.
 - **Only `react`, `react-dom`, and `loglevel` go in webpack `shared`.** Any other runtime dependency (e.g. a WebRTC/signaling/charting lib) is bundled normally — just `npm install` it and import it. Do **NOT** add a non-host-provided lib to `shared` as a `singleton`: the host's federation loader doesn't register it, so it crashes at load with "Unsatisfied version". (This is also why MUI is absent from `shared`.) The host also provides `i18next` and `react-i18next`, but you reach translations through `context.t` rather than sharing them.
 - **Never put `@netsapiens/flow-sdk` in `shared`.** It is the one entry that looks like it belongs and does not. Sharing it fails the build with "contains unresolved integrity placeholders" and fails verification on `sdk-not-shared`. Remove it entirely — `import: false` is not a workaround.
 - **Pages read context via `useFlowContext()`, not props.** Wrap each page component once in `<FlowContextProvider context={flowContext}>` inside `App.tsx` (memoized with **empty deps** for stable identity — the provider keeps theme/locale live via the eventBus). Don't prop-drill `flowContext` into pages. Extensions are different — they receive `context` as a prop (`ExtensionComponentProps`) and read `context.ui` directly.

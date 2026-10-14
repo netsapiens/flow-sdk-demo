@@ -469,7 +469,9 @@ export function LiveCallsWidget({
               <Box sx={{ justifySelf: 'end' }}>
                 {IconButton ? (
                   Tooltip ? (
-                    <Tooltip title={context.t?.('CALL_DETAILS') ?? 'Call details'}>
+                    <Tooltip
+                      title={context.t?.('CALL_DETAILS') ?? 'Call details'}
+                    >
                       {/* Tooltip needs a child that holds a ref, and the kit's
                           IconButton is a plain function component. `Box
                           component='span'` is the kit's own way to get one —
