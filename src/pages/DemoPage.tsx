@@ -52,9 +52,8 @@ export default function DemoPage({ ...marker }: ZoneMarkerProps) {
 
   if (!PageTemplate || !Paper || !Stack || !Box || !Typography || !Tabs) {
     return (
-      <div {...marker} style={{ padding: '24px' }}>
-        <h1>Flow SDK Demo</h1>
-        <p>UI context not available.</p>
+      <div {...marker} style={{ padding: 24 }}>
+        UI components not available
       </div>
     );
   }

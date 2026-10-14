@@ -31,14 +31,21 @@ const {
   MOCK_MODE = '0',
 } = process.env;
 
-// Named HORIZON_* before 3.0.0. The old names are still read for one release so
-// an existing .env keeps working; drop the fallbacks in the release after.
+// Named HORIZON_CALLBACK_SECRET before 3.0.0, and still read for one release so
+// an existing .env keeps working; drop the fallback in the release after. A
+// stale secret fails loudly (every HMAC check rejects).
 const FLOW_CALLBACK_SECRET =
   process.env.FLOW_CALLBACK_SECRET ?? process.env.HORIZON_CALLBACK_SECRET;
-const FLOW_APP_ID =
-  process.env.FLOW_APP_ID ??
-  process.env.HORIZON_APP_ID ??
-  'flow-extension-demo';
+// HORIZON_APP_ID is deliberately NOT a fallback. 3.0.0 changed the app's
+// identity, so an old value (horizon-extension-demo) is wrong by definition and
+// would make verifyClusterToken reject every callback that carries a
+// cluster-verification token.
+const FLOW_APP_ID = process.env.FLOW_APP_ID ?? 'flow-extension-demo';
+if (process.env.HORIZON_APP_ID && !process.env.FLOW_APP_ID) {
+  console.warn(
+    `WARNING: HORIZON_APP_ID is set but ignored since 3.0.0; using FLOW_APP_ID=${FLOW_APP_ID}.`,
+  );
+}
 
 const mock = MOCK_MODE === '1';
 const ttlSeconds = Number(VENDOR_TOKEN_TTL_SECONDS);

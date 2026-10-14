@@ -63,7 +63,8 @@ const VENDOR_CRM_BASE_URL = 'https://app.example-crm.example';
  *       token = await auth.requestRemoteAuth(
  *         {
  *           vendorId: VENDOR_ID,
- *           callbackUrl: 'https://your-backend.example/flow/remote-auth/callback',
+ *           // No callbackUrl: where the webhook goes is registration data,
+ *           // set by an administrator in Registered Apps.
  *           scopes: ['contacts:read'],
  *         },
  *         { timeout: 60000 },
