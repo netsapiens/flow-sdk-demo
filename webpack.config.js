@@ -152,15 +152,20 @@ module.exports = (_env, argv) => {
       port: 5005,
       // A hosted Flow server loads this dev build cross-site, as a plain
       // (no-cors) script — the host adds no `crossorigin` to an unpinned dev
-      // remote. webpack-dev-server 5.2+ answers that with 403 to stop other sites
-      // reading your dev bundle; 'all' lets the Flow host through. It also turns
-      // off the Host-header check, so only run this server on a machine you trust.
-      allowedHosts: 'all',
+      // remote. webpack-dev-server ≥5.2 answers that (Sec-Fetch-Site: cross-site
+      // + Sec-Fetch-Mode: no-cors) with 403 "Cross-Origin request blocked" unless
+      // the Host is explicitly allowed; the CORS header below does not help, the
+      // guard runs first. List the loopback names only (not 'all'), so the
+      // DNS-rebinding Host check still holds for every other name. 127.0.0.1 is
+      // listed because this guard does not exempt IP addresses the way the
+      // ordinary Host check does: a build registered at 127.0.0.1 would get 403.
+      allowedHosts: ['localhost', '127.0.0.1'],
       // No live-reload client in the bundle. It would run inside the HOST page
       // and keep opening ws://localhost:5005/ws from there — noise in the host's
       // console that looks like the app opening its own sockets (it never does;
-      // sdk.streams rides the host's socket). Reload the host page to pick up a
-      // rebuild instead.
+      // sdk.streams rides the host's socket). Pointing it at localhost
+      // (`client.webSocketURL`) does not help: the Host/Origin check refuses the
+      // portal's origin. Reload the host page to pick up a rebuild instead.
       hot: false,
       liveReload: false,
       client: false,
