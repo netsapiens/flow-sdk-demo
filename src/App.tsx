@@ -1,5 +1,5 @@
 /**
- * Remote Demo App — the federated entry point loaded by the Horizon host.
+ * Remote Demo App — the federated entry point loaded by the Flow host.
  *
  * This is the orchestrator: it initializes the SDK and, in a single effect,
  * registers everything the demo contributes to the host —
@@ -142,7 +142,7 @@ export default function App(flowContext: FlowContext) {
   // `__MF_NAME__` is injected at build time (webpack DefinePlugin) from the
   // single MODULE_FEDERATION_NAME constant in webpack.config.js — the same value
   // used as the ModuleFederationPlugin `name`, so the container name lives in one
-  // place. The SDK derives the kebab app id ('horizon-extension-demo') from it for
+  // place. The SDK derives the kebab app id ('flow-extension-demo') from it for
   // registry attribution.
   const { sdk, user, theme } = useRemoteApp(flowContext, __MF_NAME__);
 
@@ -259,8 +259,8 @@ export default function App(flowContext: FlowContext) {
       .registerRoute({
         id: 'ucaas-demo-page',
         parentPath: '/apps',
-        path: 'horizon-sdk-demo',
-        label: 'Horizon SDK Demo',
+        path: 'flow-sdk-demo',
+        label: 'Flow SDK Demo',
         icon: 'mdi:rocket-launch',
         placement: { last: true },
         component: withZoneTestId(
@@ -562,10 +562,10 @@ export default function App(flowContext: FlowContext) {
 
     // A PANEL: its own card on the grid.
     sdk.registerWidget({
-      // A plain name, NOT 'horizon-extension-demo:recent-activity'. The host
+      // A plain name, NOT 'flow-extension-demo:recent-activity'. The host
       // stamps the app prefix itself, from this app's binding on the bus, so two
       // apps can both ship a `recent-activity` and neither has to know. It is
-      // stored as 'horizon-extension-demo:recent-activity', and that stored id is
+      // stored as 'flow-extension-demo:recent-activity', and that stored id is
       // what lands in every user's saved layout — which makes this the one field
       // that cannot be renamed later without losing every placement.
       id: 'recent-activity',

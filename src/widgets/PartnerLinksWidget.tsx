@@ -26,7 +26,7 @@ import { QuickLinksPanel } from '../panels/QuickLinksPanel';
 
 /** The pages this app registers, as the reader would find them in the menus. */
 const PAGES: ReadonlyArray<{ label: string; path: string; menu: string }> = [
-  { label: 'Horizon SDK Demo', path: '/apps/horizon-sdk-demo', menu: 'Apps' },
+  { label: 'Flow SDK Demo', path: '/apps/flow-sdk-demo', menu: 'Apps' },
   {
     label: 'Component Showcase',
     path: '/apps/component-showcase',

@@ -15,7 +15,7 @@ const POINTS: Array<{ icon: string; title: string; body: string }> = [
   {
     icon: 'mdi:palette-outline',
     title: 'It is the tenant theme, not a copy of it',
-    body: 'Components arrive already wired to the running theme, so a reseller who rebrands Horizon rebrands your app at the same moment. Nothing to re-skin, nothing to keep in sync.',
+    body: 'Components arrive already wired to the running theme, so a reseller who rebrands Flow rebrands your app at the same moment. Nothing to re-skin, nothing to keep in sync.',
   },
   {
     icon: 'mdi:weather-night',
@@ -43,13 +43,13 @@ export default function IntroSection() {
   return (
     <Paper rounded>
       <Stack direction='row' spacing={1} alignItems='center' sx={{ mb: 1 }}>
-        <Typography variant='h4'>The Horizon component kit</Typography>
+        <Typography variant='h4'>The Flow component kit</Typography>
         {Chip ? (
           <Chip size='small' color='primary' label='flowContext.ui' />
         ) : null}
       </Stack>
       <Typography variant='body1' color='text.secondary' sx={{ mb: 3 }}>
-        Your app runs inside Horizon as a Module Federation remote. Rather than
+        Your app runs inside Flow as a Module Federation remote. Rather than
         asking you to match our look, the host hands your app the very
         components it renders itself. Build from these and your feature is
         indistinguishable from a native page — in every tenant&rsquo;s branding,

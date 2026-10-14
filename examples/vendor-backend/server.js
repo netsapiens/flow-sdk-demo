@@ -1,9 +1,9 @@
 /**
- * Reference vendor backend for the Horizon remoteAuth flow.
+ * Reference vendor backend for the Flow remoteAuth handshake.
  *
  * Receives the signed webhook the NetSapiens API POSTs to your `callbackUrl`,
  * verifies it, exchanges the PKCE code for proof of the user's identity, mints
- * the vendor's own token, and returns it. The Horizon platform shapes a 2xx
+ * the vendor's own token, and returns it. The Flow platform shapes a 2xx
  * JSON response into the SDK's `RemoteAuthResponse` and resolves the
  * extension's `auth.requestRemoteAuth(...)` promise.
  *
@@ -20,9 +20,7 @@ import { verifyClusterToken, verifyHmacSignature } from './lib/verify.js';
 
 const {
   PORT = '8787',
-  CALLBACK_PATH = '/horizon/callback',
-  HORIZON_CALLBACK_SECRET,
-  HORIZON_APP_ID = 'horizon-extension-demo',
+  CALLBACK_PATH = '/flow/callback',
   INSIGHT_JWKS_URL = 'https://insight.netsapiens.com/.well-known/jwks.json',
   INSIGHT_ISSUER = 'https://insight.netsapiens.com',
   VENDOR_JWT_SECRET,
@@ -32,6 +30,15 @@ const {
   PUBLIC_CALLBACK_URL,
   MOCK_MODE = '0',
 } = process.env;
+
+// Named HORIZON_* before 3.0.0. The old names are still read for one release so
+// an existing .env keeps working; drop the fallbacks in the release after.
+const FLOW_CALLBACK_SECRET =
+  process.env.FLOW_CALLBACK_SECRET ?? process.env.HORIZON_CALLBACK_SECRET;
+const FLOW_APP_ID =
+  process.env.FLOW_APP_ID ??
+  process.env.HORIZON_APP_ID ??
+  'flow-extension-demo';
 
 const mock = MOCK_MODE === '1';
 const ttlSeconds = Number(VENDOR_TOKEN_TTL_SECONDS);
@@ -75,7 +82,7 @@ app.post(CALLBACK_PATH, async (req, res) => {
       req.rawBody,
       req.get('X-NS-Signature'),
       req.get('X-NS-Timestamp'),
-      HORIZON_CALLBACK_SECRET,
+      FLOW_CALLBACK_SECRET,
     );
     if (!hmac.ok) {
       // Log the specific reason server-side; return a generic error only.
@@ -92,7 +99,7 @@ app.post(CALLBACK_PATH, async (req, res) => {
       await verifyClusterToken(clusterToken, {
         jwksUri: INSIGHT_JWKS_URL,
         issuer: INSIGHT_ISSUER,
-        expectedAppId: HORIZON_APP_ID,
+        expectedAppId: FLOW_APP_ID,
       });
       log('cluster JWT verified');
     } else {
@@ -148,9 +155,9 @@ app.listen(Number(PORT), () => {
     `vendor backend listening on :${PORT}${CALLBACK_PATH}` +
       (mock ? '  [MOCK_MODE — not for production]' : ''),
   );
-  if (!HORIZON_CALLBACK_SECRET) {
+  if (!FLOW_CALLBACK_SECRET) {
     console.warn(
-      'WARNING: HORIZON_CALLBACK_SECRET is unset — all webhooks will be rejected.',
+      'WARNING: FLOW_CALLBACK_SECRET is unset — all webhooks will be rejected.',
     );
   }
 });

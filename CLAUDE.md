@@ -1,6 +1,6 @@
-# horizon-sdk-demo — project rules
+# flow-sdk-demo — project rules
 
-This is a Module Federation **remote** loaded by the Horizon host. It is also the
+This is a Module Federation **remote** loaded by the Flow host. It is also the
 reference partner apps are pointed at, so the code has to model the practice it
 teaches, not just work.
 
@@ -24,8 +24,8 @@ style={...}>`, `<h2>`, `<table>`, `<pre>`. Use `Box`, `Button`, `Typography`,
   knowing, because it is easy to reintroduce:
 
   - The host keeps one frozen `ui` surface **per color mode** and rebuilds the
-    whole context when the mode changes (`createHorizonUi(mode)` in its
-    `HorizonAppsLoader`). So the host hands over correct tokens.
+    whole context when the mode changes (`createFlowUi(mode)` in its
+    `FlowAppsLoader`). So the host hands over correct tokens.
   - The SDK's recommended `useMemo([], …)` wrapper pattern in `App.tsx`
     **freezes the context** to keep component identity stable, so the rebuilt
     context never reaches `FlowContextProvider`.
@@ -55,7 +55,7 @@ style={...}>`, `<h2>`, `<table>`, `<pre>`. Use `Box`, `Button`, `Typography`,
 
 ### What the kit has
 
-Verified against the host's `src/lib/sdk/ui/horizonUi.ts`. Forty-one components on
+Verified against the host's `src/lib/sdk/ui/flowUi.ts`. Forty-one components on
 `ui`, plus nine shells on `ui.templates`:
 
 ```
@@ -90,7 +90,7 @@ and a snippet — read that before writing anything new.
 > started shipping all four. `src/pages/demo/PatternsPanel.tsx` still hand-rolls a
 > table through `Box component='table'` on that advice, and
 > `src/components/CodeBlock.tsx` duplicates `ui.Code`. If you find yourself about
-> to build a primitive, check `horizonUi.ts` first — this file is a copy and copies
+> to build a primitive, check `flowUi.ts` first — this file is a copy and copies
 > go stale.
 
 ### Carve-outs (the only ones)
@@ -134,5 +134,5 @@ Then `npm run typecheck && npm run lint && npm run format && npm run build`.
   or re-read to "refresh" it — the provider keeps the live fields current from
   host events, and a workaround here would hide a regression there.
 - Static page copy lives in `src/content/`; a page file is layout only.
-- Scaffolding a new Horizon app? Use the `create-horizon-app` skill in
+- Scaffolding a new Flow app? Use the `create-flow-app` skill in
   `.claude/skills/`, which carries the current SDK shape and theming rules.

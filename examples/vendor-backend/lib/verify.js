@@ -1,5 +1,5 @@
 /**
- * Webhook authenticity verification for the Horizon remoteAuth callback.
+ * Webhook authenticity verification for the Flow remoteAuth callback.
  *
  * Three signals, with different roles:
  *

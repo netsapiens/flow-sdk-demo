@@ -31,7 +31,7 @@ const TEMPLATES: Array<{ name: string; what: string; where: string }> = [
   },
   {
     name: 'SidePanel',
-    what: "Horizon's shared right-hand drawer, opened from anywhere.",
+    what: "Flow's shared right-hand drawer, opened from anywhere.",
     where: 'The Help button in the top bar.',
   },
   {

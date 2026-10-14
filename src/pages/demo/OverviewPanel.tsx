@@ -13,15 +13,15 @@ export default function OverviewPanel() {
     <Stack spacing={3}>
       <Paper rounded>
         <Typography variant='h6' gutterBottom>
-          What the Horizon SDK does
+          What the Flow SDK does
         </Typography>
         <Typography variant='body2' color='text.secondary'>
-          The Horizon SDK lets a separately-deployed (federated) application
-          extend the Horizon UI without changing core platform code. It
-          registers pages, injects components into existing pages by zone and
-          route pattern, adds table columns, subscribes to live call events, and
-          renders with the host&rsquo;s themed component kit. Everything on the
-          other tabs is registered by <strong>this</strong> demo app.
+          The Flow SDK lets a separately-deployed (federated) application extend
+          the Flow UI without changing core platform code. It registers pages,
+          injects components into existing pages by zone and route pattern, adds
+          table columns, subscribes to live call events, and renders with the
+          host&rsquo;s themed component kit. Everything on the other tabs is
+          registered by <strong>this</strong> demo app.
         </Typography>
       </Paper>
 

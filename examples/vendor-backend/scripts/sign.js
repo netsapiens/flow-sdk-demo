@@ -4,16 +4,19 @@
  * and POST it to the running server. Use with MOCK_MODE=1 so the server skips the cluster-JWT
  * verification and the live code exchange.
  *
- *   HORIZON_CALLBACK_SECRET=test-secret MOCK_MODE=1 npm start   # terminal 1
- *   HORIZON_CALLBACK_SECRET=test-secret npm run sign            # terminal 2
+ *   FLOW_CALLBACK_SECRET=test-secret MOCK_MODE=1 npm start   # terminal 1
+ *   FLOW_CALLBACK_SECRET=test-secret npm run sign            # terminal 2
  *
  * It does NOT send X-NS-Cluster-Verification, so it only works against a server
  * in MOCK_MODE. Real webhooks always carry both headers.
  */
 import crypto from 'node:crypto';
 
-const SECRET = process.env.HORIZON_CALLBACK_SECRET || 'test-secret';
-const URL = process.env.TARGET_URL || 'http://localhost:8787/horizon/callback';
+const SECRET =
+  process.env.FLOW_CALLBACK_SECRET ||
+  process.env.HORIZON_CALLBACK_SECRET || // pre-3.0.0 name, read for one release
+  'test-secret';
+const URL = process.env.TARGET_URL || 'http://localhost:8787/flow/callback';
 
 const request_id = `remauth_${crypto.randomBytes(6).toString('hex')}`;
 const code = crypto.randomBytes(16).toString('hex');
@@ -32,7 +35,7 @@ const body = {
     displayName: 'Alice Example',
   },
   vendor_id: 'demo-backend',
-  app_id: 'horizon-extension-demo',
+  app_id: 'flow-extension-demo',
   platform: {
     client_id: 1,
     client: 'netsapiens',

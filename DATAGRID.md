@@ -1,7 +1,7 @@
 # DatagridTemplate — data tables in your app
 
 `flowContext.ui.templates.DatagridTemplate` is the table surface for extension
-apps. It wraps the same grid Horizon's own pages use, so your table matches the
+apps. It wraps the same grid Flow's own pages use, so your table matches the
 host's look and behaviour without your app shipping MUI.
 
 Types: `DatagridTemplateProps`, `DatagridColumn`, `DatagridAction`,
@@ -31,7 +31,7 @@ Everything below is built in — you do not wire any of it up:
 
 ## Page layout
 
-A native Horizon list page has a fixed anatomy. `PageTemplate` owns the top two
+A native Flow list page has a fixed anatomy. `PageTemplate` owns the top two
 bands, `DatagridTemplate` owns the rest:
 
 ```text

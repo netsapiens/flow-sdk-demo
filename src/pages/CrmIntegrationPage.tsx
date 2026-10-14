@@ -13,7 +13,7 @@
  *                 reuses one source of truth.
  *
  * CRM data is mock for now. Authenticating to a real CRM backend on behalf of
- * the Horizon user is the remoteAuth flow — demonstrated standalone on the
+ * the Flow user is the remoteAuth flow — demonstrated standalone on the
  * "Remote Auth" tab — and can gate this page's CRM pane later.
  *
  * As with the rest of the demo, the live call falls back to sample data so the
@@ -41,9 +41,9 @@ const VENDOR_CRM_BASE_URL = 'https://app.example-crm.example';
  * from a live CRM instead of the mock directory.
  *
  * The demo resolves records from a static fixture (`lookupCrmRecord`). In a real
- * integration you'd authenticate to the vendor CRM on the Horizon user's behalf
+ * integration you'd authenticate to the vendor CRM on the Flow user's behalf
  * via the SDK's remoteAuth flow (demonstrated standalone on the "Remote Auth"
- * tab), then call the vendor API with the brokered token. Horizon credentials
+ * tab), then call the vendor API with the brokered token. Flow credentials
  * never reach this remote app — only the vendor token does.
  *
  * Uncomment and wire `selectedRecord` to this (in an effect, keyed on the
@@ -63,7 +63,7 @@ const VENDOR_CRM_BASE_URL = 'https://app.example-crm.example';
  *       token = await auth.requestRemoteAuth(
  *         {
  *           vendorId: VENDOR_ID,
- *           callbackUrl: 'https://your-backend.example/horizon/remote-auth/callback',
+ *           callbackUrl: 'https://your-backend.example/flow/remote-auth/callback',
  *           scopes: ['contacts:read'],
  *         },
  *         { timeout: 60000 },
@@ -385,9 +385,9 @@ export default function CrmIntegrationPage({ ...marker }: ZoneMarkerProps) {
           </Typography>
           <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
             This page is injected into the <strong>Manage</strong> menu (after
-            Call Logs) by a remote app via the Horizon SDK — no host changes,
-            and not limited to the Apps menu. It surfaces a third-party CRM{' '}
-            <em>inside</em> Horizon, something the host doesn't do natively.
+            Call Logs) by a remote app via the Flow SDK — no host changes, and
+            not limited to the Apps menu. It surfaces a third-party CRM{' '}
+            <em>inside</em> Flow, something the host doesn't do natively.
           </Typography>
           <Typography variant='body2' color='text.secondary'>
             The recent-call list is a live <code>flowContext.api</code> call to
@@ -395,9 +395,9 @@ export default function CrmIntegrationPage({ ...marker }: ZoneMarkerProps) {
             never reach this remote. Caller matching reuses the same mock CRM
             directory that powers the inbound-call widget. In a real
             integration, your app would authenticate to the CRM backend on
-            behalf of the Horizon user via <code>auth.requestRemoteAuth</code>{' '}
-            (see the <strong>Remote Auth</strong> tab) and pull live records
-            instead of mock data.
+            behalf of the Flow user via <code>auth.requestRemoteAuth</code> (see
+            the <strong>Remote Auth</strong> tab) and pull live records instead
+            of mock data.
           </Typography>
         </Paper>
       </Stack>

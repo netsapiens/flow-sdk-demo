@@ -128,7 +128,7 @@ function MyPage() {
         sx={{ mt: 2, display: 'block' }}
       >
         💡 Used in: any page that splits into sections — Account Profile, user
-        details, and the Horizon SDK Demo page&apos;s own six tabs
+        details, and the Flow SDK Demo page&apos;s own six tabs
       </Typography>
 
       <Typography

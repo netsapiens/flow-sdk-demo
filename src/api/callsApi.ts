@@ -24,7 +24,7 @@ interface NetSapiensCdr {
   id?: string;
   /** The other party as the API resolved it (e.g. `2364` or `sip:2364@netsapiens`). */
   number?: string;
-  /** The other party's display name (e.g. `2364w`, `Horizon Agent`). */
+  /** The other party's display name (e.g. `2364w`, `Flow Agent`). */
   name?: string;
   /** 0 = outbound, 1 = inbound (answered), 2 = inbound missed. */
   'call-direction'?: number | string;

@@ -6,7 +6,7 @@ import { SectionCode } from '../SectionCode';
 const FEATURED = [
   {
     icon: 'mdi:rocket-launch',
-    name: 'Horizon SDK Demo',
+    name: 'Flow SDK Demo',
     note: 'Every extension surface',
   },
   {

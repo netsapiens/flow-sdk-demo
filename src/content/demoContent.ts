@@ -1,5 +1,5 @@
 /**
- * Static content for the Horizon SDK Demo overview page (DemoPage). Pure data —
+ * Static content for the Flow SDK Demo overview page (DemoPage). Pure data —
  * the capabilities, extension zones, route patterns, walkthrough cards, and code
  * snippets the page renders. Kept out of the page so the page is just layout.
  */
@@ -43,12 +43,12 @@ export const CAPABILITIES: Capability[] = [
   {
     title: 'On-demand side panel',
     api: 'sdk.openSidePanel() / useSidePanel()',
-    desc: 'Open Horizon’s shared side panel from anywhere — a row action, a header button, a call handler — with your own React content.',
+    desc: 'Open Flow’s shared side panel from anywhere — a row action, a header button, a call handler — with your own React content.',
   },
   {
     title: 'Themed UI kit',
     api: 'flowContext.ui',
-    desc: 'Build with the host’s MUI Aurora components and templates so extensions match Horizon in light and dark mode.',
+    desc: 'Build with the host’s MUI Aurora components and templates so extensions match Flow in light and dark mode.',
   },
   {
     title: 'Gated API access',
@@ -299,7 +299,7 @@ sdk.registerDynamicExtension({
     code: `// A PANEL — its own card on the dashboard grid.
 sdk.registerWidget({
   // A plain name. The host stamps the app prefix, so this is stored as
-  // 'horizon-extension-demo:recent-activity' — and that stored id is what
+  // 'flow-extension-demo:recent-activity' — and that stored id is what
   // lands in every saved layout, so it cannot be renamed later.
   id: 'recent-activity',
   kind: 'panel',
