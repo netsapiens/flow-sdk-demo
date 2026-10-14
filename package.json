@@ -1,6 +1,6 @@
 {
   "name": "@netsapiens/horizon-sdk-demo",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Demo app showing how to extend NetSapiens Horizon with @netsapiens/flow-sdk. A Module Federation remote loaded by the Horizon host.",
   "scripts": {
