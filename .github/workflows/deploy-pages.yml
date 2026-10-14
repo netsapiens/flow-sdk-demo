@@ -1,8 +1,8 @@
 name: Deploy to GitHub Pages
 
 # Builds the Module Federation remote and publishes dist/ to GitHub Pages, which
-# serves it as a CDN: a Horizon host loads
-#   https://<org>.github.io/horizon-sdk-demo/remoteEntry.js
+# serves it as a CDN: a Flow host loads
+#   https://<org>.github.io/flow-sdk-demo/remoteEntry.js
 # GitHub Pages sends `Access-Control-Allow-Origin: *`, so cross-origin loading
 # by the host works. The page itself renders nothing standalone (headless remote).
 

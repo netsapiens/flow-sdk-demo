@@ -38,7 +38,7 @@ export function mintVendorToken(nsToken, { secret, ttlSeconds, fallbackUser }) {
       name: nsToken.displayName || fallbackUser?.displayName,
     },
     secret,
-    { expiresIn: ttlSeconds, issuer: 'horizon-remote-auth-vendor-backend' },
+    { expiresIn: ttlSeconds, issuer: 'flow-remote-auth-vendor-backend' },
   );
 
   // snake_case OAuth shape. The NetSapiens platform maps this onto the SDK's

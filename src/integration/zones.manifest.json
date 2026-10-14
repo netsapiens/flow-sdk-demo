@@ -1,11 +1,11 @@
 {
-  "$comment": "Canonical map of every surface this demo contributes to a Horizon host: SDK zone extensions, full-page routes, dynamic columns, and dashboard widgets. Single source of truth shared by the app (src/integration/zones.ts drives registration from it) and the netsapiens-horizon-testing Playwright suite (asserts each testId mounts). testId scheme: extensions 'sdk-demo-ext-<id minus demo- prefix>', routes 'sdk-demo-page-<slug>', columns 'sdk-demo-col-<field>', dashboard widgets 'sdk-demo-widget-<widgetId>'. Each injected extension is also tagged with data-zone. The testId + data-zone ride on each contributed component's OWN root element (no wrapper element), so the marker is a real, visible box — assert VISIBILITY (toBeVisible). A component that renders null (an inactive zone) has no marker, which is the accurate signal. 'version' mirrors package.json version and is the value to register the app under: the remote entry URL is stable, so the registered version is the only thing that tells Horizon to re-verify the bytes at that URL. It must match package.json — the deploy workflow fails the build if it drifts.",
-  "appId": "horizon-extension-demo",
-  "webpackModule": "horizonExtensionDemo",
-  "remoteEntryUrl": "https://netsapiens.github.io/horizon-sdk-demo/remoteEntry.js",
+  "$comment": "Canonical map of every surface this demo contributes to a Flow host: SDK zone extensions, full-page routes, dynamic columns, and dashboard widgets. Single source of truth shared by the app (src/integration/zones.ts drives registration from it) and the netsapiens-horizon-testing Playwright suite (asserts each testId mounts). testId scheme: extensions 'sdk-demo-ext-<id minus demo- prefix>', routes 'sdk-demo-page-<slug>', columns 'sdk-demo-col-<field>', dashboard widgets 'sdk-demo-widget-<widgetId>'. Each injected extension is also tagged with data-zone. The testId + data-zone ride on each contributed component's OWN root element (no wrapper element), so the marker is a real, visible box — assert VISIBILITY (toBeVisible). A component that renders null (an inactive zone) has no marker, which is the accurate signal. 'version' mirrors package.json version and is the value to register the app under: the remote entry URL is stable, so the registered version is the only thing that tells Flow to re-verify the bytes at that URL. It must match package.json — the deploy workflow fails the build if it drifts.",
+  "appId": "flow-extension-demo",
+  "webpackModule": "flowExtensionDemo",
+  "remoteEntryUrl": "https://netsapiens.github.io/flow-sdk-demo/remoteEntry.js",
   "$comment_requiredScopes": "Where a route, column or widget declares `requiredScopes`, it is recorded here so the Playwright suite knows which signed-in scope can assert that surface — but the manifest is NOT what registers it. The enforcing value is an inline string literal at the registerRoute/registerDynamicColumn/registerWidget call site in App.tsx, because the platform analyser extracts an app's declared surface by reading string literals out of submitted source and cannot follow a constant or a loop. The duplication is deliberate; keep the two in step.",
   "$comment_widgets": "Dashboard widgets are NOT auto-mounted, and that is the contract working, not a bug: registering a widget makes it eligible, and a saved layout is authoritative, so a newly available widget appears in a dashboard's Customize catalogue rather than placing itself on somebody's grid. The Playwright suite must therefore ADD the widget from Customize before it can assert its testId. `zones` is the whole list the widget is eligible on; there is no data-zone attribute on a widget, because the same component can mount on any of them and a single zone attribute would name the wrong one. Like `requiredScopes`, `zones` here is documentation — the enforcing declaration is the inline literal array at the registerWidget call site in App.tsx, for the same string-literal-extraction reason.",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "extensions": [
     {
       "id": "demo-export-button",
@@ -66,7 +66,7 @@
       "$comment": "Scoped to the demo's OWN landing page, not the '/*' it used to carry. A badge reading 'Demo Extension' on every native page — Call Logs, the platform dashboard, a customer's Users list — reads as platform chrome rather than as something an app injected, which is the opposite of what it is demonstrating. It survives on this one page purely to demonstrate the zone, where the label is self-evidently true. NOT for test coverage: netsapiens-horizon-testing cut over to horizon-sdk-testapp and loads only that app's manifest, so nothing here is asserted by any suite — an app's id derives from its webpack_module and a bundle publishes one container name, so pointing the suite at this showcase would make the two share a registration, which is how a run once deleted it. Change or delete anything in this file on its own merits; no test will stop you, and none will catch you either.",
       "id": "demo-header-status-badge",
       "zone": "page-header-secondary",
-      "routes": ["/apps/horizon-sdk-demo"],
+      "routes": ["/apps/flow-sdk-demo"],
       "testId": "sdk-demo-ext-header-status-badge"
     },
     {
@@ -86,8 +86,8 @@
     {
       "id": "ucaas-demo-page",
       "parentPath": "/apps",
-      "path": "horizon-sdk-demo",
-      "fullPath": "/apps/horizon-sdk-demo",
+      "path": "flow-sdk-demo",
+      "fullPath": "/apps/flow-sdk-demo",
       "testId": "sdk-demo-page-demo"
     },
     {
@@ -143,10 +143,7 @@
       "id": "demo-crm-status-column",
       "zone": "contacts-columns",
       "field": "crm-status",
-      "routes": [
-        "/manage/contacts",
-        "/manage/*/contacts"
-      ],
+      "routes": ["/manage/contacts", "/manage/*/contacts"],
       "requiredScopes": "PLATFORM",
       "testId": "sdk-demo-col-crm-status"
     }
@@ -155,7 +152,7 @@
     {
       "id": "demo-recent-activity",
       "widgetId": "recent-activity",
-      "storedId": "horizon-extension-demo:recent-activity",
+      "storedId": "flow-extension-demo:recent-activity",
       "kind": "panel",
       "zones": ["platform-admin-dashboard-widgets", "manage-dashboard-widgets"],
       "category": "activity",
@@ -169,7 +166,7 @@
       "$comment": "Declares `metric`, which the host frame draws as a provenance tooltip beside the title. Left at the default chrome: every widget here lets the frame draw the title, the description as a subtitle, and the shared-range window chip.",
       "id": "demo-call-volume",
       "widgetId": "call-volume",
-      "storedId": "horizon-extension-demo:call-volume",
+      "storedId": "flow-extension-demo:call-volume",
       "kind": "panel",
       "zones": ["platform-admin-dashboard-widgets"],
       "category": "charts",
@@ -184,7 +181,7 @@
       "$comment": "own-cadence: the widget owns a timer and the host hands it no range. Its Refresh remounts the component, which resets the poll counter it prints.",
       "id": "demo-sync-queue",
       "widgetId": "sync-queue",
-      "storedId": "horizon-extension-demo:sync-queue",
+      "storedId": "flow-extension-demo:sync-queue",
       "kind": "panel",
       "zones": ["platform-admin-dashboard-widgets"],
       "category": "tables",
@@ -199,7 +196,7 @@
       "$comment": "realtime: data arrives by push on the app-scoped event bus, fed by the app's sdk.streams.softphone subscription. Gated on the app's own softphone grant, so the suite must sign in as a user of an app that holds it AND drive a call before this card has anything to assert beyond its zero state.",
       "id": "demo-live-calls",
       "widgetId": "live-calls",
-      "storedId": "horizon-extension-demo:live-calls",
+      "storedId": "flow-extension-demo:live-calls",
       "kind": "panel",
       "zones": ["platform-admin-dashboard-widgets"],
       "category": "activity",
@@ -215,7 +212,7 @@
       "$comment": "A CONTAINER the app ships itself: its body is drawn by the host's LeafContainer, not by the registered component, and its leaves are the two demo-insight entries below. The category is namespaced ('demo-insight', not 'stat') so it cannot collide with the host's own stat card.",
       "id": "demo-integration-health",
       "widgetId": "integration-health",
-      "storedId": "horizon-extension-demo:integration-health",
+      "storedId": "flow-extension-demo:integration-health",
       "kind": "panel",
       "zones": ["platform-admin-dashboard-widgets"],
       "category": "other",
@@ -229,7 +226,7 @@
     {
       "id": "demo-contacts-synced",
       "widgetId": "contacts-synced",
-      "storedId": "horizon-extension-demo:contacts-synced",
+      "storedId": "flow-extension-demo:contacts-synced",
       "kind": "leaf",
       "leafOf": "demo-insight",
       "zones": ["platform-admin-dashboard-widgets"],
@@ -239,7 +236,7 @@
     {
       "id": "demo-sync-failures",
       "widgetId": "sync-failures",
-      "storedId": "horizon-extension-demo:sync-failures",
+      "storedId": "flow-extension-demo:sync-failures",
       "kind": "leaf",
       "leafOf": "demo-insight",
       "zones": ["platform-admin-dashboard-widgets"],
@@ -250,7 +247,7 @@
       "$comment": "No refreshPolicy at all: nothing here goes stale, so declaring one would invite a dependency on the dashboard's range control that this card does not have.",
       "id": "demo-partner-links",
       "widgetId": "partner-links",
-      "storedId": "horizon-extension-demo:partner-links",
+      "storedId": "flow-extension-demo:partner-links",
       "kind": "panel",
       "zones": ["platform-admin-dashboard-widgets"],
       "category": "other",
@@ -263,7 +260,7 @@
     {
       "id": "demo-recorded-calls",
       "widgetId": "recorded-calls",
-      "storedId": "horizon-extension-demo:recorded-calls",
+      "storedId": "flow-extension-demo:recorded-calls",
       "kind": "leaf",
       "leafOf": "stat",
       "zones": ["platform-admin-dashboard-widgets"],

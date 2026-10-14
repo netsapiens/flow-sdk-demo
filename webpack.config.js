@@ -9,13 +9,13 @@ const path = require('path');
 // so App.tsx passes it to useRemoteApp without retyping the string.
 //
 // `MF_NAME` overrides it for a LOCAL run against a shared server, e.g.
-//   MF_NAME=horizonExtensionDemoLocal npm run dev
-// The app id is derived from this name (horizonExtensionDemoLocal →
-// horizon-extension-demo-local), so a local build can be registered as its own
+//   MF_NAME=flowExtensionDemoLocal npm run dev
+// The app id is derived from this name (flowExtensionDemoLocal →
+// flow-extension-demo-local), so a local build can be registered as its own
 // app beside the published showcase instead of replacing it for everyone. The
 // name must match the registration's webpack_module exactly, or the host finds
 // no container and loads nothing.
-const MODULE_FEDERATION_NAME = process.env.MF_NAME || 'horizonExtensionDemo';
+const MODULE_FEDERATION_NAME = process.env.MF_NAME || 'flowExtensionDemo';
 if (!/^[A-Za-z_$][\w$]*$/.test(MODULE_FEDERATION_NAME)) {
   throw new Error(
     `MF_NAME must be a JavaScript identifier, got "${MODULE_FEDERATION_NAME}"`,
@@ -105,7 +105,7 @@ module.exports = (_env, argv) => {
           //
           // MUI is intentionally NOT listed here. The host does not register
           // @mui/material or @emotion/*, and declaring a singleton the host does not
-          // provide fails at load. Consume MUI via horizonContext.ui instead, which
+          // provide fails at load. Consume MUI via flowContext.ui instead, which
           // also carries the host theme and dark mode.
           //
           // i18next is absent for a different reason, and the distinction matters: the
@@ -117,7 +117,7 @@ module.exports = (_env, argv) => {
           // shared crashes with "Unsatisfied version". That was wrong.)
           //
           // 'react-dom/client' is NOT declared here because this demo never calls
-          // createRoot — a Horizon remote is mounted by the host, inside the host's
+          // createRoot — a Flow remote is mounted by the host, inside the host's
           // React tree. An app whose graph DOES reach it (most often via
           // @ant-design/v5-patch-for-react-19) must declare it, and must do so without
           // a fallback:

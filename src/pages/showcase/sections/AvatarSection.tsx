@@ -26,7 +26,7 @@ interface AvatarRendition {
  *
  * The same treatment the host's own top-bar avatar uses, which matters: an
  * avatar an app draws for the signed-in user sits a few pixels from the one
- * Horizon draws, and two different abbreviations of the same name is the kind
+ * Flow draws, and two different abbreviations of the same name is the kind
  * of thing nobody reports and everybody notices.
  */
 function initialsOf(name: string): string {
@@ -224,7 +224,7 @@ useEffect(() => {
         management, the directory. Always give an avatar a name in text nearby
         or an <code>alt</code>: two initials on their own tell a screen reader
         nothing. And derive them the way the host does — an avatar your app
-        draws for the signed-in user sits inches from the one Horizon draws, and
+        draws for the signed-in user sits inches from the one Flow draws, and
         two abbreviations of the same name is a mismatch nobody reports and
         everybody sees.
       </Typography>

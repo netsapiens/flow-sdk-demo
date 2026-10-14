@@ -1,9 +1,9 @@
 /**
- * Horizon SDK Demo — overview & walkthrough page.
+ * Flow SDK Demo — overview & walkthrough page.
  *
- * The single explainer for this demo app: what the Horizon SDK lets a federated
+ * The single explainer for this demo app: what the Flow SDK lets a federated
  * app do, the extension zones this app uses, real registration code, and a
- * guided walkthrough of where each surface appears in Horizon.
+ * guided walkthrough of where each surface appears in Flow.
  *
  * This file is just the tab shell — each tab's content lives in its own panel
  * under `demo/`, and the static content lives in `content/demoContent.ts`.
@@ -52,9 +52,8 @@ export default function DemoPage({ ...marker }: ZoneMarkerProps) {
 
   if (!PageTemplate || !Paper || !Stack || !Box || !Typography || !Tabs) {
     return (
-      <div {...marker} style={{ padding: '24px' }}>
-        <h1>Horizon SDK Demo</h1>
-        <p>UI context not available.</p>
+      <div {...marker} style={{ padding: 24 }}>
+        UI components not available
       </div>
     );
   }
@@ -62,11 +61,11 @@ export default function DemoPage({ ...marker }: ZoneMarkerProps) {
   return (
     <PageTemplate
       {...marker}
-      title='Horizon SDK Demo'
-      subtitle='One federated app, extending Horizon in every supported way'
+      title='Flow SDK Demo'
+      subtitle='One federated app, extending Flow in every supported way'
       breadcrumbs={[
         { label: 'Apps', url: '/apps' },
-        { label: 'Horizon SDK Demo' },
+        { label: 'Flow SDK Demo' },
       ]}
     >
       {/* SDK version badge — host components throughout, accent from the live palette. */}

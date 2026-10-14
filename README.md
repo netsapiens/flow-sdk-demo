@@ -1,30 +1,35 @@
-# Horizon SDK Demo
+# Flow SDK Demo
 
-A federated demo application showing how to extend **NetSapiens Horizon** with the
+A federated demo application showing how to extend **NetSapiens Flow** with the
 [`@netsapiens/flow-sdk`](https://www.npmjs.com/package/@netsapiens/flow-sdk).
-It is loaded into the running Horizon host over Webpack Module Federation and
+It is loaded into the running Flow host over Webpack Module Federation and
 exercises every capability the SDK exposes — full pages, zone-based UI
 extensions, a dynamic table column, dashboard widgets, live call events, and
 authenticated API access — using the host's themed component kit so everything
-matches Horizon in light and dark mode.
+matches Flow in light and dark mode.
 
-> The in-app **Apps → Horizon SDK Demo** page is the live, self-documenting tour
+> The in-app **Apps → Flow SDK Demo** page is the live, self-documenting tour
 > of everything below (Overview / Extension Zones / Route Patterns / Code /
 > Walkthrough). This README is the engineering companion to it.
 
-> **Upgrading an app built against SDK 0.1.x?** Read
-> **[MIGRATION-0.1.x-TO-0.2.x.md](./MIGRATION-0.1.x-TO-0.2.x.md)** first. It covers
-> the whole of 0.2.x — bundle verification and SRI, the reversed remote-entry URL
-> policy, the new `flowContext.ui` surfaces, and `requiredScopes` — and leads
-> with the host-side changes that already affect a bundle you published months ago
-> and have not rebuilt. It replaces `MIGRATION_BUNDLE_VERIFICATION.md`, which
-> covered only the 0.2.1 half.
+> **Renamed in 3.0.0.** This repository was `horizon-sdk-demo`, and the app was
+> registered as `horizonExtensionDemo`. It is now `flow-sdk-demo`, served from
+> `https://netsapiens.github.io/flow-sdk-demo/remoteEntry.js`, and registers as
+> `flowExtensionDemo`: a new app, so a server that ran the old one registers this
+> one fresh.
+
+> **Maintaining an app built on the old Horizon SDK 0.1.x?** The
+> [migration guide](./MIGRATION-0.1.x-TO-0.2.x.md) is kept as the record of that
+> upgrade: bundle verification and SRI, the reversed remote-entry URL
+> policy, the `ui` surfaces, and `requiredScopes`. It predates the rename, so it
+> uses the Horizon names (`@netsapiens/horizon-sdk`, `horizonContext`) that 0.3.0
+> replaced with Flow ones.
 
 > **Starting a new app with an AI agent?** This repository ships a Claude Code
 > skill at
-> [`.claude/skills/create-horizon-app/`](./.claude/skills/create-horizon-app/SKILL.md).
+> [`.claude/skills/create-flow-app/`](./.claude/skills/create-flow-app/SKILL.md).
 > Open this repo (or copy that folder into your own) and ask your agent to
-> _"create a Horizon app"_ — it scaffolds a project with bundle verification,
+> _"create a Flow app"_ — it scaffolds a project with bundle verification,
 > scope declarations and the theme contract already correct, which is most of what
 > the migration guide exists to explain. The skill is written against the same SDK
 > version this demo uses.
@@ -38,7 +43,7 @@ a backend.
 
 > **Building a data table?** Start with the **Call Recordings** page
 > (`pages/CallRecordingsPage.tsx`) — a complete list page built the way a native
-> Horizon page is built, and the thing to copy. Then read
+> Flow page is built, and the thing to copy. Then read
 > **[DATAGRID.md](./DATAGRID.md)** for the page-layout anatomy and the `height`
 > rule that otherwise leaves your pagination footer below the fold. The same guide
 > ships inside the installed package at
@@ -50,7 +55,7 @@ a backend.
 
 | Page               | Menu location                  | Notes                                                                                                                                                                                                                                                                                                                     |
 | ------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Horizon SDK Demo   | Apps                           | The overview/walkthrough page (`pages/DemoPage.tsx`).                                                                                                                                                                                                                                                                     |
+| Flow SDK Demo      | Apps                           | The overview/walkthrough page (`pages/DemoPage.tsx`).                                                                                                                                                                                                                                                                     |
 | Component Showcase | Apps                           | Reference for every shared MUI Aurora component (`pages/ComponentShowcasePage.tsx`).                                                                                                                                                                                                                                      |
 | Live Operations    | Apps                           | **The `sdk.streams` example.** A live wallboard of queues, agents, domain calls, call records, presence and phones, each card showing its stream's status — including the host's refusal for users whose scope does not allow a feed (`pages/LiveOperationsPage.tsx`).                                                    |
 | CRM Integration    | Manage (after _Call Logs_)     | Lists the user's calls from a **live** NetSapiens v2 API call, matched to their CRM record — registered into the Manage menu to show the Manage tree can be extended, not just Apps (`pages/CrmIntegrationPage.tsx`).                                                                                                     |
@@ -194,7 +199,7 @@ required.
 
 ### On-demand side panel — `sdk.openSidePanel()` / `useSidePanel()`
 
-Opens Horizon's shared `SidePanel` drawer (one instance mounted by the host) with
+Opens Flow's shared `SidePanel` drawer (one instance mounted by the host) with
 app-provided React content, from anywhere — an extension, a page, or a call
 handler. The content component receives `{ context, close }`.
 
@@ -274,7 +279,7 @@ Five things this demo is shaped to make visible, each of which is easy to get
 wrong:
 
 - **`id` is a plain name.** `recent-activity`, never
-  `horizon-extension-demo:recent-activity`. The host stamps the prefix from your
+  `flow-extension-demo:recent-activity`. The host stamps the prefix from your
   app's binding on the bus, so two apps can both ship a `recent-activity`, an app
   cannot register a native id such as `stats`, and an id read back says which app
   it came from. The **stored** id is what lands in every saved layout, which
@@ -412,7 +417,7 @@ the supported pattern for an app talking to its own components.
 ### Remote auth — `auth.requestRemoteAuth()`
 
 When the app needs to call **your own backend** on behalf of the signed-in user,
-the host relays a trusted identity handshake so the app never handles Horizon
+the host relays a trusted identity handshake so the app never handles Flow
 credentials. The **Remote Auth** tab on the demo page
 (`pages/demo/RemoteAuthPanel.tsx`) exercises the full `flowContext.auth`
 contract live — request a token, reuse the session-cached token, and clear it:
@@ -430,20 +435,20 @@ const { auth } = flowContext;
 // Authenticate on load — no button. `status`: idle | pending | ready | error.
 const { token, status, error, retry } = useRemoteAuth(
   flowContext,
-  'horizon-demo-backend',
+  'flow-demo-backend',
   { scopes: ['contacts:read'] },
 );
 
 // Or on demand, for a "Connect X" button. No callbackUrl: the destination is
 // registration data, set by an administrator.
 const onDemand = await auth.requestRemoteAuth(
-  { vendorId: 'horizon-demo-backend', scopes: ['contacts:read'] },
+  { vendorId: 'flow-demo-backend', scopes: ['contacts:read'] },
   { timeout: 60000 },
 );
 // token: { vendorId, accessToken, tokenType?, expiresAt?, refreshToken?, metadata? }
 
-auth.getRemoteAuthToken('horizon-demo-backend'); // cached for the session, or null
-auth.clearRemoteAuthToken('horizon-demo-backend'); // sign out of the vendor
+auth.getRemoteAuthToken('flow-demo-backend'); // cached for the session, or null
+auth.clearRemoteAuthToken('flow-demo-backend'); // sign out of the vendor
 ```
 
 The NetSapiens platform binds the identity to the caller's **trusted session**
@@ -500,7 +505,7 @@ rejected with **403 "Callback URL not allowed"** — which reads like the origin
 was wrong when the format was.
 
 Match the **origin only**: scheme + host (+ port if non-standard). A full path
-such as `https://api.example.com/horizon/callback` will not match.
+such as `https://api.example.com/flow/callback` will not match.
 
 If a request fails with a **500** and your backend was never called, check
 whether your portal session has expired — reload the host and retry before
@@ -523,7 +528,7 @@ Patterns decide which host routes an extension applies to:
 ### Prerequisites
 
 - Node.js 18+ (this repo pins **22.8.0** via `.nvmrc`)
-- A running Horizon host (default dev port **5003**)
+- A running Flow host (default dev port **5003**)
 - The [`@netsapiens/flow-sdk`](https://www.npmjs.com/package/@netsapiens/flow-sdk)
   package is published **publicly** to npm — `npm install` needs no auth.
 
@@ -535,7 +540,7 @@ npm run dev      # or: npm start
 ```
 
 The app serves at **http://localhost:5005/** and exposes its federated entry at
-`http://localhost:5005/remoteEntry.js`, which the Horizon host loads.
+`http://localhost:5005/remoteEntry.js`, which the Flow host loads.
 
 ### Build
 
@@ -583,7 +588,7 @@ copy fails as an invalid-hook-call that names nothing useful.
 #### `react-dom/client` — only if your graph reaches it
 
 This demo does **not** declare `react-dom/client`, and that is correct for it: a
-Horizon remote never mounts itself, so nothing here calls `createRoot`.
+Flow remote never mounts itself, so nothing here calls `createRoot`.
 
 If your app is different — most often because
 `@ant-design/v5-patch-for-react-19` imports it on your behalf — then sharing
@@ -603,7 +608,7 @@ Full reasoning in the SDK reference under
 
 ### Bundle verification (SDK 0.2.x)
 
-Horizon verifies an extension bundle before it will load it: it fetches
+Flow verifies an extension bundle before it will load it: it fetches
 `remoteEntry.js`, every chunk and every source map, hashes them, runs a content
 analyser and records a verdict. A version that passes is promoted, and the host
 pins a SHA-384 of the exact bytes it verified. `webpack.config.js` carries the
@@ -626,7 +631,7 @@ npm run verify     # flow-verify-bundle ./dist
 
 ⚠️ **The remote entry URL is stable, so the version field is load-bearing.** This
 app republishes over the same
-`https://netsapiens.github.io/horizon-sdk-demo/remoteEntry.js` on every deploy.
+`https://netsapiens.github.io/flow-sdk-demo/remoteEntry.js` on every deploy.
 Publish new bytes without changing the version and _nothing re-verifies_ — the
 platform goes on enforcing the previous bytes' hash against the new ones at the
 same URL, every host fails its integrity check, and the extension simply stops
@@ -706,12 +711,12 @@ A Module Federation remote is just static files (`remoteEntry.js` + chunks), so
 and deploys straight from CI. The host loads this remote from:
 
 ```
-https://netsapiens.github.io/horizon-sdk-demo/remoteEntry.js
+https://netsapiens.github.io/flow-sdk-demo/remoteEntry.js
         └──── Pages origin ────┘└─ repo path ─┘
 ```
 
 > Opening that URL in a browser shows a blank page — this is a **headless
-> remote**. It renders nothing on its own; it only mounts inside the Horizon host.
+> remote**. It renders nothing on its own; it only mounts inside the Flow host.
 
 ### How the build is wired for Pages
 
@@ -719,14 +724,14 @@ Two settings make a remote work from a Pages **subpath** (`/<repo>/`):
 
 - **`webpack.config.js` → `output.publicPath: 'auto'`** (production). The remote
   resolves its own chunk URLs at runtime from wherever `remoteEntry.js` was
-  loaded, so it doesn't care that Pages serves it under `/horizon-sdk-demo/`.
+  loaded, so it doesn't care that Pages serves it under `/flow-sdk-demo/`.
   Never hard-code an absolute `publicPath` for a Pages-hosted remote.
 - **`.nojekyll`** — added by the workflow. Without it, GitHub's Jekyll layer
   strips files/folders that start with `_`, which breaks some webpack output.
 
 ### Set up your own GitHub Pages CDN
 
-To host your own SDK remote (replace `horizon-sdk-demo` with your repo name):
+To host your own SDK remote (replace `flow-sdk-demo` with your repo name):
 
 1. **Create a repo** and push your app. A **public** repo gets Pages for free;
    private repos need GitHub Pro/Team/Enterprise.
@@ -748,7 +753,7 @@ dist/.nojekyll` → upload `dist/` → `actions/deploy-pages`. Pushing a file
    # → 200, application/javascript, access-control-allow-origin: *
    ```
 
-### Register the remote with a Horizon host
+### Register the remote with a Flow host
 
 Hosting the files is only half of it — the host won't load a remote it doesn't
 know about. In the host's **Registered Apps** UI (or the platform API):
@@ -756,7 +761,7 @@ know about. In the host's **Registered Apps** UI (or the platform API):
 1. **`remote_entry_url`** → your `https://<owner>.github.io/<repo>/remoteEntry.js`.
 2. **`webpack_module`** → must **exactly** match the `name` in your
    `ModuleFederationPlugin` config (`MODULE_FEDERATION_NAME` in
-   `webpack.config.js`, here `horizonExtensionDemo`). The host looks up
+   `webpack.config.js`, here `flowExtensionDemo`). The host looks up
    `window[<webpack_module>]` after loading the script; a mismatch fails with
    `Container '<name>' not found`. This value is **immutable** — it's baked into
    the deployed bundle and is the root the server derives the app id from.

@@ -1,6 +1,6 @@
 # Remote-auth vendor backend (reference)
 
-A runnable reference for the **vendor/server side** of the Horizon `remoteAuth`
+A runnable reference for the **vendor/server side** of the Flow `remoteAuth`
 flow. The browser-side extension calls `auth.requestRemoteAuth(...)` (see the
 **Remote Auth** tab in the demo app); the NetSapiens API then POSTs a signed,
 single-use authorization **code** to your registered callback endpoint. This server is what
@@ -101,12 +101,12 @@ validation_endpoint` form-encoded with `grant_type=authorization_code`,
 
 ```bash
 npm install
-cp .env.example .env   # fill in HORIZON_CALLBACK_SECRET, HORIZON_APP_ID, VENDOR_JWT_SECRET (required)
+cp .env.example .env   # fill in FLOW_CALLBACK_SECRET, FLOW_APP_ID, VENDOR_JWT_SECRET (required)
 node --env-file=.env server.js   # Node 20+ ; or: export the vars and `npm start`
 ```
 
 The server listens on `PORT` (default 8787) at `CALLBACK_PATH`
-(default `/horizon/callback`). Register `https://<your-host>:8787/horizon/callback`
+(default `/flow/callback`). Register `https://<your-host>:8787/flow/callback`
 as the app's callback URL, and put its hostname on the app's allowed-hostnames
 list in Registered Apps.
 
@@ -118,10 +118,10 @@ locally. **Never set it in production.**
 
 ```bash
 # terminal 1 — server in mock mode
-HORIZON_CALLBACK_SECRET=test-secret VENDOR_JWT_SECRET=dev-secret MOCK_MODE=1 npm start
+FLOW_CALLBACK_SECRET=test-secret VENDOR_JWT_SECRET=dev-secret MOCK_MODE=1 npm start
 
 # terminal 2 — POST a correctly-signed mock webhook
-HORIZON_CALLBACK_SECRET=test-secret npm run sign
+FLOW_CALLBACK_SECRET=test-secret npm run sign
 ```
 
 Expected: `status: 200` and a JSON body with a freshly minted
@@ -130,7 +130,7 @@ Expected: `status: 200` and a JSON body with a freshly minted
 
 ## Production notes
 
-- Keep `HORIZON_CALLBACK_SECRET` and `VENDOR_JWT_SECRET` out of source control.
+- Keep `FLOW_CALLBACK_SECRET` and `VENDOR_JWT_SECRET` out of source control.
 - Terminate TLS in front of this (`callbackUrl` must be HTTPS).
 - The auth code is single-use and short-lived (`expires_in`); exchange it
   promptly and return within the platform's `remote_timeout_seconds`.

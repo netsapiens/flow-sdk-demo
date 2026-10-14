@@ -1,8 +1,8 @@
 {
-  "name": "horizon-remote-auth-vendor-backend",
+  "name": "flow-remote-auth-vendor-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Reference vendor backend for the Horizon remoteAuth flow: receives the signed callback, verifies it, exchanges the PKCE code, and mints a vendor token.",
+  "description": "Reference vendor backend for the Flow remoteAuth handshake: receives the signed callback, verifies it, exchanges the PKCE code, and mints a vendor token.",
   "type": "module",
   "engines": {
     "node": ">=18"

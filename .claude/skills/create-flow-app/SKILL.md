@@ -1,11 +1,11 @@
 ---
-name: create-horizon-app
-description: Scaffold a NetSapiens Horizon remote app that passes platform bundle verification — chunk SRI, source maps, correct webpack `shared` config — with the current SDK shape: API client, scope declarations, capability-gated data streams, scoped event bus, and theme-correct UI. Use when asked to "create a Horizon app", "scaffold a Horizon extension", or to start a new partner integration.
+name: create-flow-app
+description: Scaffold a NetSapiens Flow remote app that passes platform bundle verification — chunk SRI, source maps, correct webpack `shared` config — with the current SDK shape: API client, scope declarations, capability-gated data streams, scoped event bus, and theme-correct UI. Use when asked to "create a Flow app", "scaffold a Flow extension" (or the older "Horizon app" / "Horizon extension"), or to start a new partner integration.
 ---
 
-# create-horizon-app
+# create-flow-app
 
-Scaffolds a new remote app for NetSapiens Horizon.
+Scaffolds a new remote app for NetSapiens Flow.
 
 > **A scaffolded app must pass platform bundle verification.** Since SDK 0.2.x the platform
 > fetches the bundle itself, hashes it, and analyses it before it may load. Three things in the
@@ -14,7 +14,7 @@ Scaffolds a new remote app for NetSapiens Horizon.
 >
 > 1. **Chunk Subresource Integrity** (`webpack-subresource-integrity` + `crossOriginLoading`)
 > 2. **Source maps with `sourcesContent`** (`devtool: 'source-map'`, and `dist/*.map` must ship)
-> 3. **`@netsapiens/horizon-sdk` must NOT be in webpack `shared`**
+> 3. **`@netsapiens/flow-sdk` must NOT be in webpack `shared`**
 >
 > And one that only bites once the app grows past the template:
 >
@@ -27,7 +27,7 @@ Scaffolds a new remote app for NetSapiens Horizon.
 > Run `npm run verify` before submitting. A pass locally is a pass on the platform.
 
 > **RULE 1 — never hand-roll a UI component.** Every visible element comes from
-> `horizonContext.ui` (`ui.*` components and `ui.templates.*`). No styled DOM
+> `flowContext.ui` (`ui.*` components and `ui.templates.*`). No styled DOM
 > elements: no `<div style={…}>`, `<button style={…}>`, `<h2>`, `<table>`, `<pre>`.
 >
 > This is not a style preference. Kit components render inside the host's MUI
@@ -101,11 +101,11 @@ If the target directory exists, ask before overwriting.
     "dev": "webpack serve --mode development",
     "build": "webpack --mode production",
     "start": "webpack serve --mode development",
-    "verify": "horizon-verify-bundle ./dist"
+    "verify": "flow-verify-bundle ./dist"
   },
   "engines": { "node": ">=18" },
   "dependencies": {
-    "@netsapiens/horizon-sdk": "^0.2.11",
+    "@netsapiens/flow-sdk": "^0.2.11",
     "loglevel": "^1.9.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -221,7 +221,7 @@ module.exports = (_env, argv) => {
       name: MODULE_NAME,
       filename: 'remoteEntry.js',
       exposes: { './App': './src/App' },
-      // Host-provided singletons only. Do NOT add `@netsapiens/horizon-sdk` here:
+      // Host-provided singletons only. Do NOT add `@netsapiens/flow-sdk` here:
       // sharing it fails the build outright with "contains unresolved integrity
       // placeholders", and the verifier rejects on `sdk-not-shared`. Removing it
       // entirely is the fix — do not try `import: false` for the SDK.
@@ -235,7 +235,7 @@ module.exports = (_env, argv) => {
 
         // ⚠️ ONLY IF something in your graph calls createRoot — and you may not
         // have written that import. `@ant-design/v5-patch-for-react-19` does it,
-        // so anyone porting an antd UI has it whether they know or not. A Horizon
+        // so anyone porting an antd UI has it whether they know or not. A Flow
         // remote is mounted by the host inside the host's React tree, so a normal
         // extension never calls createRoot: check before adding this.
         //
@@ -276,22 +276,22 @@ module.exports = (_env, argv) => {
     port: <dev-port>,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      // REQUIRED for an HTTPS Horizon to load from localhost. Chrome's Private
+      // REQUIRED for an HTTPS Flow to load from localhost. Chrome's Private
       // Network Access preflights that script load and refuses it unless the
-      // preflight allows the private network; Horizon then reports only
+      // preflight allows the private network; Flow then reports only
       // "Script load error".
       'Access-Control-Allow-Private-Network': 'true',
     },
-    // REQUIRED to load the dev server from Horizon. webpack-dev-server ≥5.2
+    // REQUIRED to load the dev server from Flow. webpack-dev-server ≥5.2
     // answers a cross-site <script> load (Sec-Fetch-Site: cross-site +
     // Sec-Fetch-Mode: no-cors) with 403 "Cross-Origin request blocked" unless
-    // the Host is explicitly allowed — and that is exactly how Horizon fetches a
+    // the Host is explicitly allowed — and that is exactly how Flow fetches a
     // dev remote. The CORS header above does not help: the guard runs first.
     // List only the loopback names (not 'all') so the DNS-rebinding Host check
     // still holds for every other name. `127.0.0.1` must be listed explicitly:
     // this guard does not exempt IP addresses the way the ordinary check does.
     allowedHosts: ['localhost', '127.0.0.1'],
-    // No live-reload client. Inside Horizon its socket comes from the portal's
+    // No live-reload client. Inside Flow its socket comes from the portal's
     // origin, which the Host/Origin check above refuses ("Invalid Host/Origin
     // header"), so it floods the console with reconnect errors. Pointing it at
     // localhost (`client.webSocketURL`) does not help. Reload the page by hand.
@@ -325,9 +325,9 @@ module.exports = (_env, argv) => {
 ### `src/App.tsx`
 
 ```tsx
-import type { HorizonContext } from '@netsapiens/horizon-sdk';
-import { useEffect, useMemo, useRef } from 'react';
-import { HorizonContextProvider, useRemoteApp } from '@netsapiens/horizon-sdk';
+import type { FlowContext } from '@netsapiens/flow-sdk';
+import { useEffect, useMemo } from 'react';
+import { FlowContextProvider, useRemoteApp } from '@netsapiens/flow-sdk';
 
 import HeaderButton from './extensions/HeaderButton';
 import MainPage from './pages/MainPage';
@@ -337,35 +337,28 @@ import MainPage from './pages/MainPage';
 // the kebab-case registry id from it, so this always matches the webpack name.
 declare const __MF_NAME__: string;
 
-export default function App(horizonContext: HorizonContext) {
-  const { sdk } = useRemoteApp(horizonContext, __MF_NAME__);
+export default function App(flowContext: FlowContext) {
+  const { sdk } = useRemoteApp(flowContext, __MF_NAME__);
 
-  // The host rebuilds `horizonContext` on every colour-mode change, `ui`
-  // included — it keeps one frozen surface per mode. This ref is what lets the
-  // wrapper below see that: read the LATEST context at render instead of closing
-  // over the first one.
-  //
-  // Do not drop it. The wrapper is memoized with empty deps to keep a STABLE
-  // component identity (re-creating it would unmount the page on every render),
-  // and a closure over `horizonContext` would therefore pin the page to the
-  // context captured on first paint — `theme` would keep updating while
-  // `ui.theme`/`ui.styles` stayed on the mode active when the app loaded. That
-  // combination is the single most common theming bug in a Horizon remote.
-  const contextRef = useRef(horizonContext);
-  contextRef.current = horizonContext;
-
-  // Wrap the page once in HorizonContextProvider so it reads a live, reactive
-  // context (theme/locale/ui) via useHorizonContext() — no prop drilling.
+  // The wrapper below is memoized with empty deps so the page keeps a STABLE
+  // component identity (re-creating it would unmount the page on every
+  // render). That freezes `flowContext` at first paint, and that is fine:
+  // FlowContextProvider keeps `theme`, `locale`, `managing` and `ui` live from
+  // host events (`ui` rides on `theme:changed`), so the page reads the current
+  // colour mode through useFlowContext(). Do not add a ref to "refresh" the
+  // context; the provider already does it, and a workaround here would hide a
+  // regression there.
   const MainPageRoute = useMemo(
     () =>
       function MainPageRoute() {
         return (
-          <HorizonContextProvider context={contextRef.current}>
+          <FlowContextProvider context={flowContext}>
             <MainPage />
-          </HorizonContextProvider>
+          </FlowContextProvider>
         );
       },
-    [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [], // stable identity prevents the host from remounting the page
   );
 
   useEffect(() => {
@@ -453,11 +446,11 @@ export default function App(horizonContext: HorizonContext) {
 
 ```tsx
 import { useState } from 'react';
-import { useHorizonContext, useTheme } from '@netsapiens/horizon-sdk';
+import { useFlowContext, useTheme } from '@netsapiens/flow-sdk';
 
 export default function MainPage() {
   // Read the live, reactive context from the provider — not via props.
-  const { ui, user } = useHorizonContext();
+  const { ui, user } = useFlowContext();
   // `theme` is the REACTIVE color scheme: it flips the instant the user toggles
   // dark/light. Use it to PICK something (an icon, a branch), never to rebuild
   // styling — the `ui.*` components already re-theme themselves. See
@@ -529,13 +522,13 @@ export default function MainPage() {
 ### `src/extensions/HeaderButton.tsx`
 
 ```tsx
-import { type ExtensionComponentProps, useTheme } from '@netsapiens/horizon-sdk';
+import { type ExtensionComponentProps, useTheme } from '@netsapiens/flow-sdk';
 
 export default function HeaderButton({ context }: ExtensionComponentProps) {
   // Extensions read the host UI components off `context.ui` (a prop, not a hook).
   const { Button, Icon } = context.ui || {};
 
-  // Extensions render OUTSIDE HorizonContextProvider, so `useTheme()` can't read
+  // Extensions render OUTSIDE FlowContextProvider, so `useTheme()` can't read
   // a provider — pass `context.eventBus` (subscribe for live updates) and
   // `context.theme` (correct value on first paint, before the first toggle).
   const { theme } = useTheme(context.eventBus, context.theme);
@@ -596,17 +589,17 @@ dist/
 ### `KIT-GAPS.md`
 
 Seed the file empty, then **append to it while you build** — every time you reach
-for a component that `horizonContext.ui` does not have and use something else
+for a component that `flowContext.ui` does not have and use something else
 instead. See the agent note at the bottom; this is not a scaffold-time artefact,
 it is a running log.
 
 ```md
-# Kit gaps — `horizonContext.ui`
+# Kit gaps — `flowContext.ui`
 
 Components this app reached for and did not find, what it used instead, and what
 that cost. Recorded while building, when the reasoning was still live.
 
-**Please share this file** with the Horizon SDK team — it is the input that
+**Please share this file** with the Flow SDK team — it is the input that
 decides what gets added to the host UI kit. Add an entry whenever you work
 around a missing component rather than fixing it silently.
 
@@ -626,7 +619,7 @@ around a missing component rather than fixing it silently.
 ````md
 # <display-name>
 
-Federated remote app for NetSapiens Horizon.
+Federated remote app for NetSapiens Flow.
 
 ## Develop
 
@@ -635,11 +628,11 @@ Federated remote app for NetSapiens Horizon.
 
 Serves `remoteEntry.js` from `http://localhost:<dev-port>/remoteEntry.js`.
 
-## Register with Horizon
+## Register with Flow
 
 Use **Platform → UI SDK Management → Registered Apps → Add App** in the host UI, or the API:
 
-    curl -X POST "https://your-horizon.example.com/ns-api/v2/ui-extensions/registry" \
+    curl -X POST "https://your-flow.example.com/ns-api/v2/ui-extensions/registry" \
       -H "Authorization: Bearer YOUR_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{
@@ -656,11 +649,11 @@ The app `id` is derived server-side as the kebab-case of `webpack_module` (so `<
 
 There is deliberately **no `permissions` or `capabilities` field**. The platform analyser extracts what your bundle declares (`requiredPermissions` on your extension configs) from the submitted source; the Capabilities column in Registered Apps is a read-only view of that. Capabilities are enabled or disabled **platform-wide** by an administrator, not per app.
 
-Your origin must be in the operator's **approved CDN origins** allowlist or the bundle is refused before it is fetched. It is an allowlist of bare hostnames or single-label wildcards (`cdn.example.com`, `*.example.com`) and defaults to _nothing approved_. `localhost` and `127.0.0.1` are seeded, but that alone does not make a local bundle load — see **Local development** below. Failure is silent in the UI — check the console for `[HorizonAppsLoader]` errors.
+Your origin must be in the operator's **approved CDN origins** allowlist or the bundle is refused before it is fetched. It is an allowlist of bare hostnames or single-label wildcards (`cdn.example.com`, `*.example.com`) and defaults to _nothing approved_. `localhost` and `127.0.0.1` are seeded, but that alone does not make a local bundle load — see **Local development** below. Failure is silent in the UI — check the console for `[FlowAppsLoader]` errors.
 
 **Registration alone does not make the app load.** A newly registered app sits at verification status `none` and renders nowhere. Deploy a version — the platform fetches the bundle itself, verifies it, and promotes it:
 
-    curl -X POST "https://your-horizon.example.com/ns-api/v2/ui-extensions/registry/<app-id>/deploy" \
+    curl -X POST "https://your-flow.example.com/ns-api/v2/ui-extensions/registry/<app-id>/deploy" \
       -H "Authorization: Bearer YOUR_TOKEN" \
       -H "Content-Type: application/json" \
       -d '{ "remote_entry_url": "https://cdn.example.com/remoteEntry.js", "synchronous": "yes" }'
@@ -669,16 +662,16 @@ Your origin must be in the operator's **approved CDN origins** allowlist or the 
 
 ## Local development
 
-You can run the app on your own machine and have Horizon load it straight from `localhost`, with no scan and no publishing — then it's just code and refresh. This needs Horizon (Flow) **46.0.0-staging.320** or newer and NS API v2 **46.0.0-alpha.598** or newer.
+You can run the app on your own machine and have Flow load it straight from `localhost`, with no scan and no publishing — then it's just code and refresh. This needs Flow (Flow) **46.0.0-staging.320** or newer and NS API v2 **46.0.0-alpha.598** or newer.
 
 1.  **Switch it on once per dev server.** A Super User adds an **API config** (not a UI config) under **Platform › API › API configs › Add API config**: name `NsUISDKDevRemotes`, value type boolean, value `true`, target your API server(s). It is for development servers, so it is not in the populated list.
-2.  **Run `npm run dev`** and check that `http://localhost:<dev-port>/remoteEntry.js` opens in your browser. The `devServer` block in `webpack.config.js` (`allowedHosts`, `client: false`, the `Access-Control-Allow-Private-Network` header) and `optimization.nodeEnv` are what make this work inside Horizon — keep them.
+2.  **Run `npm run dev`** and check that `http://localhost:<dev-port>/remoteEntry.js` opens in your browser. The `devServer` block in `webpack.config.js` (`allowedHosts`, `client: false`, the `Access-Control-Allow-Private-Network` header) and `optimization.nodeEnv` are what make this work inside Flow — keep them.
 
     On a server other people use, run it under its own name instead — `MF_NAME=<module-scope>Local npm run dev` — and use that name in step 3. Deploying a localhost URL to the published app points it at localhost for **everyone**: each of them then loads nothing.
 
 3.  **Register and deploy with the localhost URL.** Registering (above) with `remote_entry_url: http://localhost:<dev-port>/remoteEntry.js` is not enough by itself: the registration stays at `none`. Deploy it, with that same URL:
 
-        curl -X POST "https://your-horizon.example.com/ns-api/v2/ui-extensions/registry/<app-id>/deploy" \
+        curl -X POST "https://your-flow.example.com/ns-api/v2/ui-extensions/registry/<app-id>/deploy" \
           -H "Authorization: Bearer YOUR_TOKEN" \
           -H "Content-Type: application/json" \
           -d '{ "remote_entry_url": "http://localhost:<dev-port>/remoteEntry.js", "synchronous": "yes" }'
@@ -687,20 +680,20 @@ You can run the app on your own machine and have Horizon load it straight from `
 
     It answers `"status": "dev"` with no findings, and **Registered Apps** shows it as a **Development build**. (Without the API config, the same call is `rejected` with `fetch-failed: host resolves to a private, reserved or link-local address` — the platform's own fetch refuses localhost.)
 
-4.  **Reload Horizon** in Chrome or Edge. Chrome asks whether the site may access devices on your local network — allow it, or the bundle cannot be fetched. Newer Chrome keeps **loopback** (`localhost`) as its own permission, separate from the wider local network: if the load is still refused, open the site's settings, allow every local-network/loopback entry (or **Reset permissions** and reload to be asked again). As a last resort on a development machine, `chrome://flags/#local-network-access-check` → **Disabled** turns the check off browser-wide; switch it back afterwards. Safari cannot load a development build: it blocks an `http://` script on an `https://` page, localhost included.
+4.  **Reload Flow** in Chrome or Edge. Chrome asks whether the site may access devices on your local network — allow it, or the bundle cannot be fetched. Newer Chrome keeps **loopback** (`localhost`) as its own permission, separate from the wider local network: if the load is still refused, open the site's settings, allow every local-network/loopback entry (or **Reset permissions** and reload to be asked again). As a last resort on a development machine, `chrome://flags/#local-network-access-check` → **Disabled** turns the check off browser-wide; switch it back afterwards. Safari cannot load a development build: it blocks an `http://` script on an `https://` page, localhost included.
 
 A development build is fetched by **each viewer's own browser from its own `localhost`**, so it only renders for someone running the dev server on that machine; everyone else gets a console load error. Development builds load only from `localhost` / `127.0.0.1` URLs. When you are done, deploy a real build from your CDN URL, which runs the full verification.
 
-If the app is listed but does not render, the console tells you which piece is missing: a `403` on `remoteEntry.js` is the dev server's cross-site guard (`allowedHosts`); "Script load error" with no response at all is Chrome's local-network check — the `Access-Control-Allow-Private-Network` header, or a denied local-network/loopback permission (step 4); "dispatcher.getOwner is not a function" is the development JSX runtime (`optimization.nodeEnv`); repeated "Invalid Host/Origin header" or `/ws` reconnect errors are the live-reload client (`client: false`). After a masquerade, Horizon does not reload remote apps: reload the page before testing as the masqueraded user.
+If the app is listed but does not render, the console tells you which piece is missing: a `403` on `remoteEntry.js` is the dev server's cross-site guard (`allowedHosts`); "Script load error" with no response at all is Chrome's local-network check — the `Access-Control-Allow-Private-Network` header, or a denied local-network/loopback permission (step 4); "dispatcher.getOwner is not a function" is the development JSX runtime (`optimization.nodeEnv`); repeated "Invalid Host/Origin header" or `/ws` reconnect errors are the live-reload client (`client: false`). After a masquerade, Flow does not reload remote apps: reload the page before testing as the masqueraded user.
 
 ## Build for production
 
     npm run build
     npm run verify
 
-`verify` runs `horizon-verify-bundle` against `dist/`, the same checks the platform runs. A pass here is a pass there. Fix anything it reports before publishing — in particular `chunk-integrity`, `source-maps`, `sources-content` and `sdk-not-shared`, which are hard rejects.
+`verify` runs `flow-verify-bundle` against `dist/`, the same checks the platform runs. A pass here is a pass there. Fix anything it reports before publishing — in particular `chunk-integrity`, `source-maps`, `sources-content` and `sdk-not-shared`, which are hard rejects.
 
-Publish `dist/` — **including `dist/*.map`** — to your CDN at a **stable URL**. The remote entry URL does not change between releases: bump `version` in `package.json`, rebuild, publish over the same path, then submit the new version. The version field is what tells Horizon to re-verify the bytes at that URL.
+Publish `dist/` — **including `dist/*.map`** — to your CDN at a **stable URL**. The remote entry URL does not change between releases: bump `version` in `package.json`, rebuild, publish over the same path, then submit the new version. The version field is what tells Flow to re-verify the bytes at that URL.
 
 > Between publishing and the platform promoting the new version, the CDN serves new bytes while the platform still pins the old hash, so loads fail SRI. **Release in a maintenance window**, and keep the registered version and `package.json` version in lockstep (worth a CI guard).
 
@@ -786,7 +779,7 @@ requiredScopes: ['Admin', 'Super User']     // pinned literally — only when no
 
 The tiers are `PLATFORM`, `ADMINS`, `DOMAIN_MANAGERS`, `DOMAIN_ONLY`, `CALL_CENTER`,
 `END_USERS`. `SCOPE_GROUPS` in the SDK is a **fallback snapshot for local dev and
-tests**, not the enforcement path — read `useScopes()` / `horizonContext.scopes` for
+tests**, not the enforcement path — read `useScopes()` / `flowContext.scopes` for
 the live vocabulary.
 
 Three things that catch people out:
@@ -807,12 +800,12 @@ so treat it as intent, not enforcement.
 
 ## Remote authentication (contract, only if your backend needs it)
 
-Skip this unless the app authenticates the Horizon user against **your own**
+Skip this unless the app authenticates the Flow user against **your own**
 service. Where a webhook is sent is registration data, set by an administrator —
 the app does not choose it.
 
 ```tsx
-const { token, status, error } = useRemoteAuth(horizonContext, '<your-vendor-id>', {
+const { token, status, error } = useRemoteAuth(flowContext, '<your-vendor-id>', {
   scopes: ['profile'],
 });
 ```
@@ -832,11 +825,11 @@ rest.
 
 ## Calling the NetSapiens API (contract)
 
-Read/write platform data through `horizonContext.api` — the host-brokered,
+Read/write platform data through `flowContext.api` — the host-brokered,
 audited proxy. The app never sees the user's token.
 
 ```tsx
-const { api, user } = useHorizonContext(); // (or destructure from useRemoteApp in App.tsx)
+const { api, user } = useFlowContext(); // (or destructure from useRemoteApp in App.tsx)
 
 const devices = await api.get<Device[]>(`/domains/${user.domain}/users/${user.extension}/devices`);
 await api.post(`/domains/${user.domain}/users/${user.extension}/contacts`, {
@@ -856,7 +849,7 @@ await api.post(`/domains/${user.domain}/users/${user.extension}/contacts`, {
 ## What's in the kit (inventory)
 
 Check here before building anything yourself — RULE 1 is only followable if you
-know what exists. Everything below hangs off `horizonContext.ui`.
+know what exists. Everything below hangs off `flowContext.ui`.
 
 **Whole shells** — `ui.templates.*`: `PageTemplate`,
 `PageTemplateWithExtensions`, `FormTemplate`, `FormPanel`, `SidePanel`,
@@ -929,7 +922,7 @@ a `breadcrumbs` prop), `TextArea` (`TextField multiline`), `DatePicker`. If you
 need one, use the nearest primitive and log it in `KIT-GAPS.md`.
 
 **Verify this list before trusting it.** It is a copy of the host's
-`src/lib/sdk/ui/horizonUi.ts` and copies go stale — this section listed `Table`,
+`src/lib/sdk/ui/flowUi.ts` and copies go stale — this section listed `Table`,
 `Grid`, `List` and `Code` as missing for several releases after they shipped, and
 apps hand-rolled all four on that advice.
 
@@ -951,7 +944,7 @@ their interaction — worth knowing, because it is easy to reintroduce:
 1. **The host is fine.** It keeps one frozen `ui` surface _per colour mode_ and
    rebuilds the whole context when the mode changes. Correct tokens are handed
    over every time.
-2. **The provider refreshes only two fields.** `HorizonContextProvider`
+2. **The provider refreshes only two fields.** `FlowContextProvider`
    re-spreads `{ ...context, theme, locale }` and never touches `context.ui`.
 3. **So freezing the context pins `ui`.** The `useMemo([], …)` page wrapper in
    `App.tsx` — needed for stable component identity — closes over the context
@@ -1236,7 +1229,7 @@ Two rules govern how a remote app talks across the host boundary. The host **enf
 
 ### 1. Host data streams are capability-gated — never read the raw bus
 
-Live host data (call events, subscriber / device / registration changes) is delivered **only** through the SDK as per-app callbacks. It is **not** broadcast on `eventBus`, so `horizonContext.eventBus.on('call-event' | 'subscriber:*', …)` receives nothing.
+Live host data (call events, subscriber / device / registration changes) is delivered **only** through the SDK as per-app callbacks. It is **not** broadcast on `eventBus`, so `flowContext.eventBus.on('call-event' | 'subscriber:*', …)` receives nothing.
 
 ```tsx
 // Call events — typed helper:
@@ -1272,8 +1265,8 @@ The host hands each app a **scoped** `eventBus`. Custom events you emit are auto
 
 ```tsx
 // Intra-app coordination only — the host scopes this to your app automatically.
-horizonContext.eventBus.emit('<app-id>:refresh', payload);
-horizonContext.eventBus.on('<app-id>:refresh', handler); // clean up in your effect
+flowContext.eventBus.emit('<app-id>:refresh', payload);
+flowContext.eventBus.on('<app-id>:refresh', handler); // clean up in your effect
 ```
 
 Do **not** subscribe to `theme:changed` / `locale:changed` directly — use `useTheme()` / `useLocale()`. Opening the shared side panel from an extension is a built-in control event — use `useSidePanel()`, not a custom event.
@@ -1290,8 +1283,8 @@ Next:
   npm install
   npm run dev
 
-Then register with Horizon (see README for the curl command), and visit
-/apps/<app-id> in your Horizon instance.
+Then register with Flow (see README for the curl command), and visit
+/apps/<app-id> in your Flow instance.
 
 Check who each surface is for:
   Every registered route, extension and column should declare `requiredScopes`.
@@ -1308,12 +1301,12 @@ Before you ship:
   Your CDN origin must be in the operator's approved CDN origins list, or the
   bundle is refused before it is fetched.
 
-To develop against a live Horizon without publishing, see "Local development"
+To develop against a live Flow without publishing, see "Local development"
 in the README: it needs the `NsUISDKDevRemotes` API config on the server, then
 a deploy of the localhost URL.
 
 If you had to work around a missing UI component, it is written up in
-KIT-GAPS.md — please send that file to the Horizon SDK team. It is how the
+KIT-GAPS.md — please send that file to the Flow SDK team. It is how the
 host UI kit finds out what it is missing.
 ```
 
@@ -1321,13 +1314,13 @@ host UI kit finds out what it is missing.
 
 - Replace **all** placeholders before writing files: `<app-id>`, `<display-name>`, `<module-scope>`, `<dev-port>`, `<author>`.
 - **Keep `KIT-GAPS.md` up to date as you build — this is a running log, not a scaffold-time file.** The kit is deliberately smaller than MUI, so sooner or later you will want a component it does not have. Whenever that happens, do not just work around it silently: append an entry recording what you reached for, what you used instead (with the file path), what it cost, and the component shape that would have fit. You are the only observer who has that reasoning while it is still live — a developer reading the finished code months later cannot reconstruct why a `ToggleButtonGroup` is pretending to be a tab strip. This file is the sole mechanism by which the host UI kit learns what it is missing, so an unrecorded workaround is a gap nobody ever hears about. If you finish with no gaps, leave the file with its commented-out template; an empty log is a real signal too.
-- **The federation name is single-sourced.** `<module-scope>` (camelCase) is now hardcoded in exactly one place — `MODULE_NAME` in `webpack.config.js`, which `MF_NAME` overrides for a local run — and flows into the app via `DefinePlugin` (`__MF_NAME__`), which `useRemoteApp(horizonContext, __MF_NAME__)` consumes. Do **not** also hardcode the module name in `App.tsx`. `<module-scope>` must be a valid JS identifier (camelCase, no dashes); the SDK/host derive the kebab `<app-id>` from it, which is what you use for route ids/paths (`<app-id>.main`, `/apps/<app-id>`) and the registration's `capabilities.routes`.
-- Don't pull in MUI as a direct dependency — every UI component comes from `horizonContext.ui`. They're wrapped in the host MUI `ThemeProvider`, so they re-theme on a live dark/light toggle for free — which is exactly why hand-rolled markup colored from raw tokens drifts out of sync.
+- **The federation name is single-sourced.** `<module-scope>` (camelCase) is now hardcoded in exactly one place — `MODULE_NAME` in `webpack.config.js`, which `MF_NAME` overrides for a local run — and flows into the app via `DefinePlugin` (`__MF_NAME__`), which `useRemoteApp(flowContext, __MF_NAME__)` consumes. Do **not** also hardcode the module name in `App.tsx`. `<module-scope>` must be a valid JS identifier (camelCase, no dashes); the SDK/host derive the kebab `<app-id>` from it, which is what you use for route ids/paths (`<app-id>.main`, `/apps/<app-id>`) and the registration's `capabilities.routes`.
+- Don't pull in MUI as a direct dependency — every UI component comes from `flowContext.ui`. They're wrapped in the host MUI `ThemeProvider`, so they re-theme on a live dark/light toggle for free — which is exactly why hand-rolled markup colored from raw tokens drifts out of sync.
 - **RULE 1 is the one to re-read before writing any JSX — see the top of this skill, and "What's in the kit".** Every visible element comes from `ui.*` / `ui.templates.*`; colours go in `sx` as palette paths. Never paint from `ui.theme.colors` or `ui.styles` — they are per-mode snapshots, so hand-rolled markup silently stops following the dark/light toggle, and `getThemeTokens`/`getUIStyles` are host-internal so you cannot recompute fresh ones. `useTheme() → { theme }` is the only reactive mode signal, and it is for _picking_ a value you own. In standalone extensions (outside the provider) call `useTheme(context.eventBus, context.theme)`. Full mechanism in "Theming & dark/light mode".
-- **Keep the `contextRef` in `App.tsx`.** The memoized page wrapper must read `contextRef.current`, not close over `horizonContext`. Closing over it pins `ui` to the colour mode active at first paint while `theme` keeps updating — the most common theming bug in a Horizon remote, and invisible until someone toggles dark mode.
+- **Close over `flowContext` in the memoized page wrapper; do not add a `contextRef`.** The wrapper's empty deps freeze the context at first paint, and `FlowContextProvider` keeps `theme`, `locale`, `managing` and `ui` live from host events, so pages still follow the dark/light toggle. A ref that re-reads the context hides a provider regression instead of exposing it. On a host too old to send `ui` with `theme:changed`, `ui.theme`/`ui.styles` stay on the first-paint mode, which is one more reason to build from `ui.*` components and palette paths rather than painting from tokens.
 - **Only `react`, `react-dom`, and `loglevel` go in webpack `shared`.** Any other runtime dependency (e.g. a WebRTC/signaling/charting lib) is bundled normally — just `npm install` it and import it. Do **NOT** add a non-host-provided lib to `shared` as a `singleton`: the host's federation loader doesn't register it, so it crashes at load with "Unsatisfied version". (This is also why MUI is absent from `shared`.) The host also provides `i18next` and `react-i18next`, but you reach translations through `context.t` rather than sharing them.
-- **Never put `@netsapiens/horizon-sdk` in `shared`.** It is the one entry that looks like it belongs and does not. Sharing it fails the build with "contains unresolved integrity placeholders" and fails verification on `sdk-not-shared`. Remove it entirely — `import: false` is not a workaround.
-- **Pages read context via `useHorizonContext()`, not props.** Wrap each page component once in `<HorizonContextProvider context={horizonContext}>` inside `App.tsx` (memoized with **empty deps** for stable identity — the provider keeps theme/locale live via the eventBus). Don't prop-drill `horizonContext` into pages. Extensions are different — they receive `context` as a prop (`ExtensionComponentProps`) and read `context.ui` directly.
+- **Never put `@netsapiens/flow-sdk` in `shared`.** It is the one entry that looks like it belongs and does not. Sharing it fails the build with "contains unresolved integrity placeholders" and fails verification on `sdk-not-shared`. Remove it entirely — `import: false` is not a workaround.
+- **Pages read context via `useFlowContext()`, not props.** Wrap each page component once in `<FlowContextProvider context={flowContext}>` inside `App.tsx` (memoized with **empty deps** for stable identity — the provider keeps theme/locale live via the eventBus). Don't prop-drill `flowContext` into pages. Extensions are different — they receive `context` as a prop (`ExtensionComponentProps`) and read `context.ui` directly.
 - **Host UI components are properly typed — do not cast them.** They carry real prop contracts (`HostComponentProps`, or a named interface where the shape is specific). Casting to `ComponentType<unknown>` or `ComponentType<Record<string, unknown>>` was a 0.1.x-era workaround and is now actively wrong: props are contravariant, so `unknown` demands a component accepting every possible props object, and React 19 reads it as `IntrinsicAttributes` — "accepts no props" — which makes `<Paper sx={{ p: 2 }}>x</Paper>` a type error. Destructure from `ui` and use them directly.
 - **Route menu position uses `placement`, not `order`.** `RouteConfig` has no `order` field — use `placement: { first: true } | { last: true } | { after: 'anchor' } | { before: 'anchor' }` (anchors resolve by fuzzy match). `registerRoute` is async — `.catch()` it.
 - Don't use `sdk.registerExtension` (legacy, removed). Use `sdk.registerDynamicExtension` with a zone + route patterns.
@@ -1335,11 +1328,11 @@ host UI kit finds out what it is missing.
 - **Declare `requiredScopes` on every route, extension and column — see "Declaring who a surface is for".** Omitting it means every signed-in user can reach the surface; the host no longer treats a hidden menu entry as a gate. Prefer a tier name (`'ADMINS'`) over a literal scope array, and write it inline so a typo is a compile error — a malformed declaration refuses the whole registration rather than being ignored.
 - **Streams are capability-gated.** For any stream the app subscribes to, add its `<streamId>:listen` capability to the registration `permissions` (e.g. `call-events:listen`); a platform admin enables it per app. Without the grant, the subscription is silently dropped.
 - **The event bus is per-app scoped.** Use `eventBus` only for the app's _own_ custom events (intra-app coordination — your page ↔ your extensions), namespaced with the appId prefix; the host confines them to your app and blocks cross-app/host-channel access. Don't subscribe to `theme:changed` / `locale:changed` directly — use `useTheme()` / `useLocale()`.
-- Don't import from `@netsapiens/horizon-sdk/client` or `/ui` — only the root entry exists.
+- Don't import from `@netsapiens/flow-sdk/client` or `/ui` — only the root entry exists.
 - **Domain pages have two route shapes.** Admins above the domain get `/manage/:domain/<page>`; the domain's own Office/Site Manager gets `/home/domain/<page>`, with no `:domain` param (read `user.domain`). Register both patterns, or domain managers never see the extension.
-- **`locale` is not a BCP 47 tag.** Horizon sends forms like `enUS`; `localeCompare`/`Intl.*` throw `RangeError: Invalid language tag`. Map it to a valid tag (e.g. `fr*` → `'fr'`, else `'en'`) before any locale-sensitive call.
+- **`locale` is not a BCP 47 tag.** Flow sends forms like `enUS`; `localeCompare`/`Intl.*` throw `RangeError: Invalid language tag`. Map it to a valid tag (e.g. `fr*` → `'fr'`, else `'en'`) before any locale-sensitive call.
 - **`form-section-*` zones only get what the host form passes.** The zone's `pageContext` is `{ formType, mode, entityId, formData }`, and `formData` is whatever that form hands to `FormPanel` — some host forms pass none (the Add/Edit site form gets `formData: undefined`). Zones cannot write the host form or see its submit. Log `pageContext` on the target form before designing around it.
-- **Host pickers cache their lists.** Horizon's autocomplete fields read cached lists (dial plans: `staleTime` 3 h). An object your app creates through the API is not offered in host forms until the page is reloaded — tell the user, or offer a reload.
+- **Host pickers cache their lists.** Flow's autocomplete fields read cached lists (dial plans: `staleTime` 3 h). An object your app creates through the API is not offered in host forms until the page is reloaded — tell the user, or offer a reload.
 - **`IconButton` is shorthand-only.** Pass the Iconify icon name via the `icon` prop (and optionally `iconSize`). Do NOT use the MUI children pattern — children are not supported and the button will render at 0×0. Correct: `<IconButton icon="mdi:account" iconSize={18} size="small" onClick={...} aria-label="..." />`. Wrong: `<IconButton><Icon icon="mdi:account" /></IconButton>`. The SDK type contract enforces this at compile time. Every other themed component (`Button`, `Stack`, `Paper`, etc.) follows standard MUI children patterns.
 - **`Select` takes an `options` prop, not `MenuItem` children.** The host kit does not expose `MenuItem`. Use `<Select label="…" value={v} onChange={(e) => set(e.target.value)} options={[{ value, label }]} />`. Building it with `MenuItem` children yields an empty dropdown.
 - **Contribute action-zone buttons with `actions`, not `component`.** Declaring

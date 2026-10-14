@@ -2,7 +2,7 @@
  * Quick Links side-panel content.
  *
  * Opened on demand via the SDK's `useSidePanel()` / `sdk.openSidePanel()` (see
- * TopbarHelpButton). Rendered inside Horizon's shared SidePanel drawer, so it
+ * TopbarHelpButton). Rendered inside Flow's shared SidePanel drawer, so it
  * receives the host `context` (ui, theme, …) and a `close` callback.
  */
 import type { SidePanelContentProps } from '@netsapiens/flow-sdk';

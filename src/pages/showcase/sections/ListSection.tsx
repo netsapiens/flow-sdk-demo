@@ -42,7 +42,7 @@ export default function ListSection() {
         <ListItem component='li'>
           <ListItemText
             primary='Render the result'
-            secondary='Through context.ui, so it matches Horizon'
+            secondary='Through context.ui, so it matches Flow'
           />
         </ListItem>
       </List>

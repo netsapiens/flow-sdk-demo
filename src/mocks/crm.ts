@@ -61,7 +61,7 @@ const INTERNAL_CRM_EXTRAS: Record<
   '2009': {
     lastContact: 'Today',
     notes:
-      'Reseller / channel partner — resells Horizon across their territory (40+ domains). White-glove handling; route to partner success.',
+      'Reseller / channel partner — resells Flow across their territory (40+ domains). White-glove handling; route to partner success.',
     callCount: 22,
   },
   '2364': {

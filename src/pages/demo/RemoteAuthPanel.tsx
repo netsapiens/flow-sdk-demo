@@ -8,7 +8,7 @@
  * signature, exchanges the code (PKCE) for a token proving the user, mints its
  * own vendor token, and returns it — which resolves the promise.
  *
- * This panel only exercises the client half of the flow — it requires a Horizon
+ * This panel only exercises the client half of the flow — it requires a Flow
  * host plus the per-app admin config (remote auth enabled, allowed hostnames,
  * signing secret). Against a host without it, the request rejects/timeouts and
  * the panel renders the error, which is the point: the contract is what the demo
@@ -30,7 +30,7 @@ import { CodeBlock } from '../../components/CodeBlock';
 // registration data, set by an administrator in Registered Apps. It used to be a
 // request field, which meant browser-side code chose where a redeemable
 // authorization code was POSTed.
-const VENDOR_ID = 'horizon-demo-backend';
+const VENDOR_ID = 'flow-demo-backend';
 const SCOPES = ['contacts:read'];
 
 const CLIENT_SNIPPET = `// Simplest form: authenticate as soon as the app loads, no button.
@@ -71,7 +71,7 @@ const BACKEND_SNIPPET = `// Your backend webhook — the NetSapiens API POSTs a 
 // JSON.stringify(req.body) will not match.
 app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
-app.post('/horizon/callback', async (req, res) => {
+app.post('/flow/callback', async (req, res) => {
   const { code, validation_endpoint } = req.body;
   const timestamp = req.get('X-NS-Timestamp');
 
@@ -80,7 +80,7 @@ app.post('/horizon/callback', async (req, res) => {
   //    body containing it.
   const [algo, sig] = (req.get('X-NS-Signature') ?? '').split('=');
   const expected = crypto
-    .createHmac('sha256', process.env.HORIZON_CALLBACK_SECRET)
+    .createHmac('sha256', process.env.FLOW_CALLBACK_SECRET)
     .update(\`\${timestamp}.\`)
     .update(req.rawBody)
     .digest('hex');
@@ -182,9 +182,9 @@ export default function RemoteAuthPanel() {
       <Typography variant='body2' color='text.secondary' sx={{ mb: 3 }}>
         When the app needs to call <em>your</em> backend on behalf of the
         signed-in user, the host relays a trusted identity handshake — your
-        server proves the request came from Horizon (HMAC signature), exchanges
-        the delivered code for proof of identity, and issues its own vendor
-        token. The app never handles Horizon credentials.
+        server proves the request came from Flow (HMAC signature), exchanges the
+        delivered code for proof of identity, and issues its own vendor token.
+        The app never handles Flow credentials.
       </Typography>
 
       {/* Live demo */}

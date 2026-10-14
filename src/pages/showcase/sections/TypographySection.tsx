@@ -131,9 +131,8 @@ t?.('SAVE') ?? 'Save'`}
       >
         💡 Reach for a host key before writing your own. Anything the platform
         already says — Save, Cancel, Status, Active — is translated into every
-        locale Horizon ships and stays that way; a string you hard-code is
-        English forever, and reads as English in the middle of a translated
-        page.
+        locale Flow ships and stays that way; a string you hard-code is English
+        forever, and reads as English in the middle of a translated page.
       </Typography>
     </Paper>
   );
