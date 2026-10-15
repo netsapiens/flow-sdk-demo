@@ -8,7 +8,6 @@
  */
 import { useFlowContext } from '@netsapiens/flow-sdk';
 
-import { CodeBlock } from '../../../components/CodeBlock';
 import { useShowCode } from '../ShowCode';
 
 const POINTS: Array<{ icon: string; title: string; body: string }> = [
@@ -36,7 +35,7 @@ const POINTS: Array<{ icon: string; title: string; body: string }> = [
 
 export default function IntroSection() {
   const { ui } = useFlowContext();
-  const { Typography, Paper, Box, Stack, Divider, Icon, Chip } = ui || {};
+  const { Typography, Paper, Box, Stack, Divider, Icon, Chip, Code } = ui || {};
   const showCode = useShowCode();
   if (!Paper || !Typography || !Box || !Stack) return null;
 
@@ -93,8 +92,9 @@ export default function IntroSection() {
             may be mounted by a host that predates a component, so treat every
             one as optional and render a fallback rather than crashing the page.
           </Typography>
-          <CodeBlock>
-            {`import { useFlowContext } from '@netsapiens/flow-sdk';
+          {Code ? (
+            <Code>
+              {`import { useFlowContext } from '@netsapiens/flow-sdk';
 
 function MyPanel() {
   const { ui, theme, t } = useFlowContext();
@@ -112,7 +112,8 @@ function MyPanel() {
     </Paper>
   );
 }`}
-          </CodeBlock>
+            </Code>
+          ) : null}
         </>
       ) : null}
 

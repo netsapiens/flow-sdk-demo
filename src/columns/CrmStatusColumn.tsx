@@ -51,26 +51,6 @@ const CHIP_COLOR: Record<
   'Not in CRM': 'default',
 };
 
-/**
- * Fallback palette for when the host UI surface isn't available. These are
- * values the app owns, so they branch on `context.theme` rather than being read
- * from `ui.theme` — those tokens are a snapshot and go stale after a toggle.
- */
-const FALLBACK_COLOR: Record<'light' | 'dark', Record<CrmStatus, string>> = {
-  light: {
-    Synced: '#088759',
-    Queued: '#d97706',
-    Failed: '#dc2626',
-    'Not in CRM': '#6b7280',
-  },
-  dark: {
-    Synced: '#35b084',
-    Queued: '#fbbf24',
-    Failed: '#f87171',
-    'Not in CRM': '#9ca3af',
-  },
-};
-
 export function CrmStatusCell({
   params,
   context,
@@ -93,27 +73,8 @@ export function CrmStatusCell({
     );
   }
 
-  // Degraded path: own markup, so pick a mode-appropriate value per the theming
-  // contract. `context.theme` is the reactive signal — the host rebuilds the
-  // column context when the scheme flips.
-  const color =
-    FALLBACK_COLOR[context.theme === 'dark' ? 'dark' : 'light'][status];
-
-  return (
-    <div
-      {...marker}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        backgroundColor: `${color}20`,
-        color,
-        fontSize: '12px',
-        fontWeight: 500,
-      }}
-    >
-      {status}
-    </div>
-  );
+  // Kit unavailable: the status as plain, uncoloured text. The word carries
+  // the meaning; a hand-drawn pill would mean this app owning a palette and
+  // branching on the colour mode to keep it legible, which is the kit's job.
+  return <span {...marker}>{status}</span>;
 }

@@ -13,23 +13,10 @@ export function HeaderStatusBadge({
 }: ExtensionComponentProps & ZoneMarkerProps) {
   const { Chip } = context.ui ?? {};
 
-  // Fallback if the host UI surface is unavailable
+  // Kit unavailable: plain, uncoloured text. A hand-drawn pill here would be
+  // the one thing on the header that ignores the tenant theme and the toggle.
   if (!Chip) {
-    return (
-      <span
-        {...marker}
-        style={{
-          padding: '2px 8px',
-          borderRadius: 12,
-          background: '#10b98120',
-          color: '#10b981',
-          fontSize: 12,
-          fontWeight: 600,
-        }}
-      >
-        ● Live
-      </span>
-    );
+    return <span {...marker}>Live</span>;
   }
 
   return (

@@ -45,13 +45,14 @@ style={...}>`, `<h2>`, `<table>`, `<pre>`. Use `Box`, `Button`, `Typography`,
   `gap`, `spacing`). Reading `ui.theme.spacing` / `.typography` /
   `.borderRadius` is _safe_ (mode-independent) but rarely worth it.
 - The one reactive theme signal is `useTheme()` from the SDK. Use it only to
-  **pick** something (an icon, a `grey.900` vs `grey.50` background — see
-  `src/components/CodeBlock.tsx`), never to rebuild styling the kit already does.
+  **pick** something (an icon, a `grey.900` vs `grey.50` background), never to
+  rebuild styling the kit already does. Nothing in `src/` needs it today: the
+  one place that did was a hand-rolled code block, now `ui.Code`.
 - Missing a component? Say so and pick the nearest kit primitive, with every color
   still from `sx`. Do not fill a gap with hand-styled markup — and check the list
-  below before deciding it is a gap. `src/pages/demo/PatternsPanel.tsx` builds a
-  table out of `Box component='table' | 'tr' | 'td'` because this file used to say
-  the kit had no `Table`; it has one.
+  below before deciding it is a gap. `src/pages/demo/PatternsPanel.tsx` once built
+  a table out of `Box component='table' | 'tr' | 'td'` because this file used to
+  say the kit had no `Table`; it has one.
 
 ### What the kit has
 
@@ -87,11 +88,11 @@ and a snippet — read that before writing anything new.
 
 > **This table was wrong for a while, and it cost real work.** It used to list
 > `Table`, `Grid`, `List` and a `Code` block as missing, long after the host
-> started shipping all four. `src/pages/demo/PatternsPanel.tsx` still hand-rolls a
-> table through `Box component='table'` on that advice, and
-> `src/components/CodeBlock.tsx` duplicates `ui.Code`. If you find yourself about
-> to build a primitive, check `flowUi.ts` first — this file is a copy and copies
-> go stale.
+> started shipping all four. On that advice `src/pages/demo/PatternsPanel.tsx`
+> hand-rolled a table through `Box component='table'` and a `CodeBlock` component
+> duplicated `ui.Code`; both have since been replaced with the kit's own. If you
+> find yourself about to build a primitive, check `flowUi.ts` first — this file
+> is a copy and copies go stale.
 
 ### Carve-outs (the only ones)
 

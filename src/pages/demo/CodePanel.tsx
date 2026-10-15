@@ -1,13 +1,12 @@
 /** DemoPage tab: Code — the registration snippets this demo uses. */
 import { useFlowContext } from '@netsapiens/flow-sdk';
 
-import { CodeBlock } from '../../components/CodeBlock';
 import { CODE_EXAMPLES } from '../../content/demoContent';
 
 export default function CodePanel() {
   const { ui } = useFlowContext();
-  const { Paper, Stack, Typography } = ui || {};
-  if (!Paper || !Stack || !Typography) return null;
+  const { Paper, Stack, Typography, Code } = ui || {};
+  if (!Paper || !Stack || !Typography || !Code) return null;
 
   return (
     <Paper rounded>
@@ -21,7 +20,7 @@ export default function CodePanel() {
             <Typography variant='subtitle2' fontWeight={600}>
               {example.title}
             </Typography>
-            <CodeBlock>{example.code}</CodeBlock>
+            <Code>{example.code}</Code>
           </Stack>
         ))}
       </Stack>
