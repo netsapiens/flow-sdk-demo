@@ -7,17 +7,32 @@ import type {
   ActivityRow,
   CallActivity,
   CallRecord,
-  DashboardTemplateWidgetProps,
   FlowNotification,
   StreamStatus,
 } from '@netsapiens/flow-sdk';
+import type { ReactNode } from 'react';
 import { useContext } from 'react';
 import { useFlowContext } from '@netsapiens/flow-sdk';
 
 import type { Tone } from './format';
 import type { Sample } from './liveContext';
-import { chipColor, fmtSeconds, initials, isBlocked, since } from './format';
-import { agentKey, QueuePickContext, useLive } from './liveContext';
+import {
+  chipColor,
+  CRITICAL_WAIT_SEC,
+  fmtSeconds,
+  initials,
+  isBlocked,
+  since,
+  waitTone,
+} from './format';
+import {
+  agentCounts,
+  agentKey,
+  missedPctOf,
+  QueuePickContext,
+  useLive,
+  waitOf,
+} from './liveContext';
 import { CardBody, Empty } from './parts';
 
 // ── Headline leaves ──────────────────────────────────────────────────────────
@@ -40,7 +55,7 @@ function Stat({
 }: {
   status: StreamStatus;
   metric: keyof Omit<Sample, 'label'>;
-  value: number;
+  value: number | string;
   caption: string;
   tone: Tone;
 }) {
@@ -65,30 +80,61 @@ function Stat({
 }
 
 export function WaitingStat() {
-  const { queues, queueStatus } = useLive();
+  const { queues, queueStatus, agents } = useLive();
   const waiting = queues.reduce((n, q) => n + q.waiting, 0);
-  const longest = queues.reduce((n, q) => Math.max(n, q.longestWaitSec), 0);
+  const { free } = agentCounts(agents);
   return (
     <Stat
       status={queueStatus}
       metric='waiting'
       value={waiting}
-      caption={waiting ? `longest ${fmtSeconds(longest)}` : 'no one waiting'}
-      tone={waiting > 0 ? 'warning' : 'success'}
+      caption={
+        waiting === 0
+          ? 'no one waiting'
+          : free === 0
+            ? 'no agent free'
+            : `${free} agent${free === 1 ? '' : 's'} free`
+      }
+      tone={waiting === 0 ? 'success' : free === 0 ? 'error' : 'warning'}
+    />
+  );
+}
+
+export function LongestWaitStat() {
+  const { queues, queueStatus, now } = useLive();
+  let longest = 0;
+  let where = '';
+  for (const q of queues) {
+    const wait = waitOf(q, now);
+    if (wait > longest) [longest, where] = [wait, q.queue];
+  }
+  return (
+    <Stat
+      status={queueStatus}
+      metric='longestWait'
+      value={longest ? fmtSeconds(longest) : '—'}
+      caption={
+        !longest
+          ? 'no one waiting'
+          : longest >= CRITICAL_WAIT_SEC
+            ? `critical · queue ${where}`
+            : `queue ${where}`
+      }
+      tone={longest ? waitTone(longest) : 'success'}
     />
   );
 }
 
 export function AgentsFreeStat() {
-  const { queues, queueStatus } = useLive();
-  const free = queues.reduce((n, q) => n + q.agentsAvailable, 0);
-  const loggedIn = queues.reduce((n, q) => n + q.agentsLoggedIn, 0);
+  const { agents, agentStatus } = useLive();
+  // People, not a sum of each queue's count: an agent in three queues is one.
+  const { free, total } = agentCounts(agents);
   return (
     <Stat
-      status={queueStatus}
+      status={agentStatus}
       metric='agentsFree'
-      value={free}
-      caption={`of ${loggedIn} logged in`}
+      value={`${free} / ${total}`}
+      caption='free of agents in queues'
       tone={free > 0 ? 'success' : 'warning'}
     />
   );
@@ -122,6 +168,39 @@ export function PhonesStat() {
   );
 }
 
+/**
+ * Inbound outcomes since the app loaded (running totals, see liveFeeds.ts).
+ * Records are domain admins only, so everyone else sees "not available".
+ */
+export function AnsweredStat() {
+  const { outcomes, recordStatus } = useLive();
+  const { answered, missed } = outcomes;
+  return (
+    <Stat
+      status={recordStatus}
+      metric='answered'
+      value={answered}
+      caption={`of ${answered + missed} inbound`}
+      tone='primary'
+    />
+  );
+}
+
+export function MissedRateStat() {
+  const { outcomes, recordStatus } = useLive();
+  const { missed } = outcomes;
+  const missedPct = missedPctOf(outcomes);
+  return (
+    <Stat
+      status={recordStatus}
+      metric='missedPct'
+      value={`${missedPct.toFixed(1)}%`}
+      caption={`${missed} missed`}
+      tone={missedPct >= 10 ? 'error' : missedPct >= 5 ? 'warning' : 'success'}
+    />
+  );
+}
+
 export function AvailableStat() {
   const { presence, presenceStatus } = useLive();
   const open = presence.filter((p) => p.presence === 'open').length;
@@ -148,7 +227,7 @@ export function ActivityChart() {
       <Empty
         icon='mdi:chart-areaspline'
         title='Collecting'
-        description='The trend fills in every ten seconds while this page is open.'
+        description='The trend fills in every ten seconds, from when the app loaded.'
       />
     );
   }
@@ -169,59 +248,110 @@ export function ActivityChart() {
 
 // ── Queues and agents ────────────────────────────────────────────────────────
 
+/** A figure in a table cell, coloured by tone; neutral reads as plain text. */
+function Toned({ tone, children }: { tone: Tone; children: ReactNode }) {
+  const { ui } = useFlowContext();
+  const Typography = ui?.Typography;
+  if (!Typography) return null;
+  return (
+    <Typography
+      component='span'
+      variant='body2'
+      fontWeight={tone === 'neutral' ? undefined : 600}
+      color={tone === 'neutral' ? 'text.primary' : `${tone}.main`}
+      sx={{ fontVariantNumeric: 'tabular-nums' }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
 export function QueuesCard() {
   const { ui } = useFlowContext();
-  const { queues, queueStatus } = useLive();
+  const { queues, queueStatus, now, queueName } = useLive();
   const pick = useContext(QueuePickContext);
-  const { Table, TableHead, TableBody, TableRow, TableCell, Chip } = ui ?? {};
-  if (!Table || !TableHead || !TableBody || !TableRow || !TableCell || !Chip)
+  const { Table, TableHead, TableBody, TableRow, TableCell, Typography } =
+    ui ?? {};
+  if (
+    !Table ||
+    !TableHead ||
+    !TableBody ||
+    !TableRow ||
+    !TableCell ||
+    !Typography
+  )
     return null;
+  // Busiest first, the way a supervisor scans it.
+  const rows = [...queues].sort(
+    (a, b) =>
+      b.waiting - a.waiting ||
+      waitOf(b, now) - waitOf(a, now) ||
+      a.queue.localeCompare(b.queue),
+  );
   return (
     <CardBody status={queueStatus} call='queues.onDomainQueues({ stats })'>
-      {queues.length === 0 ? (
+      {rows.length === 0 ? (
         <Empty icon='mdi:account-group' title='No queue activity yet' />
       ) : (
         <Table size='small'>
           <TableHead>
             <TableRow>
               <TableCell>Queue</TableCell>
-              <TableCell>Waiting</TableCell>
-              <TableCell align='right'>Longest</TableCell>
-              <TableCell align='right'>Agents free</TableCell>
-              <TableCell align='right'>On calls</TableCell>
+              <TableCell align='right'>Waiting</TableCell>
+              <TableCell align='right'>Longest wait</TableCell>
+              <TableCell align='right'>Active</TableCell>
+              <TableCell align='right'>Agents free / in</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {queues.map((q) => (
-              <TableRow
-                key={q.queue}
-                hover
-                sx={{ cursor: 'pointer' }}
-                onClick={() => pick(q.queue)}
-              >
-                <TableCell>{q.queue}</TableCell>
-                <TableCell>
-                  <Chip
-                    size='small'
-                    label={q.waiting}
-                    color={chipColor(
-                      q.waiting === 0
-                        ? 'success'
-                        : q.agentsAvailable === 0
-                          ? 'error'
-                          : 'warning',
-                    )}
-                  />
-                </TableCell>
-                <TableCell align='right'>
-                  {fmtSeconds(q.longestWaitSec)}
-                </TableCell>
-                <TableCell align='right'>
-                  {q.agentsAvailable} / {q.agentsLoggedIn}
-                </TableCell>
-                <TableCell align='right'>{q.activeCalls}</TableCell>
-              </TableRow>
-            ))}
+            {rows.map((q) => {
+              const wait = waitOf(q, now);
+              return (
+                <TableRow
+                  key={q.queue}
+                  hover
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => pick(q.queue)}
+                >
+                  <TableCell>
+                    <Typography variant='body2' fontWeight={600}>
+                      {queueName(q.queue)}
+                    </Typography>
+                    <Typography variant='caption' color='text.secondary'>
+                      {q.queue}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned
+                      tone={
+                        q.waiting === 0
+                          ? 'neutral'
+                          : q.agentsAvailable === 0
+                            ? 'error'
+                            : 'warning'
+                      }
+                    >
+                      {q.waiting}
+                    </Toned>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned tone={wait ? waitTone(wait) : 'neutral'}>
+                      {wait ? fmtSeconds(wait) : '—'}
+                    </Toned>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned tone='neutral'>{q.activeCalls}</Toned>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned
+                      tone={q.agentsAvailable === 0 ? 'warning' : 'neutral'}
+                    >
+                      {q.agentsAvailable} / {q.agentsLoggedIn}
+                    </Toned>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}
@@ -414,18 +544,22 @@ function mos(r: CallRecord): string {
 
 export function RecordsStat() {
   const { ui } = useFlowContext();
-  const { records, recordStatus } = useLive();
+  const { outcomes, recordStatus } = useLive();
   const StatBlock = ui?.StatBlock;
   if (!StatBlock) return null;
   if (isBlocked(recordStatus))
     return (
       <StatBlock value='—' caption='Not available to you' tone='neutral' />
     );
-  const missed = records.filter((r) => r.direction === 'missed').length;
+  // Running totals since the app loaded, not `records`, which holds only the
+  // latest RECORDS_KEPT for the table.
+  const { missed } = outcomes;
+  const ended =
+    outcomes.answered + outcomes.missed + outcomes.outbound + outcomes.internal;
   return (
     <StatBlock
-      value={records.length}
-      caption={missed ? `${missed} missed` : 'since this page opened'}
+      value={ended}
+      caption={missed ? `${missed} missed` : 'since the app loaded'}
       tone={missed ? 'warning' : 'primary'}
     />
   );
@@ -585,7 +719,7 @@ export function CallRecordsCard() {
  * call ends (`completed`), then the recording, call quality, summary and
  * disposition land one by one (`updated`).
  */
-export function RecordDeliveriesCard({ widget }: DashboardTemplateWidgetProps) {
+export function RecordDeliveriesCard() {
   const { ui } = useFlowContext();
   const { recordDeliveries, recordStatus } = useLive();
   const ActivityList = ui?.ActivityList;
@@ -618,7 +752,7 @@ export function RecordDeliveriesCard({ widget }: DashboardTemplateWidgetProps) {
           description='End a call, then save a disposition on it, to see both deliveries.'
         />
       ) : (
-        <ActivityList rows={rows} width={widget.pixel.width} />
+        <ActivityList rows={rows} />
       )}
     </CardBody>
   );
@@ -720,7 +854,7 @@ function timeOf(iso: string): string {
       });
 }
 
-export function NotificationsCard({ widget }: DashboardTemplateWidgetProps) {
+export function NotificationsCard() {
   const { ui } = useFlowContext();
   const { notifications, notificationStatus } = useLive();
   const ActivityList = ui?.ActivityList;
@@ -740,13 +874,13 @@ export function NotificationsCard({ widget }: DashboardTemplateWidgetProps) {
       {rows.length === 0 ? (
         <Empty icon='mdi:bell-outline' title='No notifications yet' />
       ) : (
-        <ActivityList rows={rows} width={widget.pixel.width} />
+        <ActivityList rows={rows} />
       )}
     </CardBody>
   );
 }
 
-export function UserChangesCard({ widget }: DashboardTemplateWidgetProps) {
+export function UserChangesCard() {
   const { ui } = useFlowContext();
   const { userChanges, userStatus } = useLive();
   const ActivityList = ui?.ActivityList;
@@ -770,7 +904,7 @@ export function UserChangesCard({ widget }: DashboardTemplateWidgetProps) {
           description='Do-not-disturb, status messages and voicemail flags show up here.'
         />
       ) : (
-        <ActivityList rows={rows} width={widget.pixel.width} />
+        <ActivityList rows={rows} />
       )}
     </CardBody>
   );

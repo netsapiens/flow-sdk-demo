@@ -7,30 +7,34 @@ import type {
   PresenceChange,
   QueueStats,
   RemoteAppSDK,
+  StreamStatus,
   SubscriberUpdate,
 } from '@netsapiens/flow-sdk';
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { useStream } from '@netsapiens/flow-sdk';
-
-import type { LiveState, RecordDelivery, Sample } from './liveContext';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  agentKey,
-  HISTORY_POINTS,
-  LiveContext,
-  SAMPLE_MS,
-} from './liveContext';
+  useFlowContext,
+  useManagingDomain,
+  useStream,
+} from '@netsapiens/flow-sdk';
+
+import type { LiveState } from './liveContext';
+import { agentKey, LiveContext } from './liveContext';
+import { LIVE_FEEDS, liveHistory, RECORDS_KEPT } from './liveFeeds';
 
 /**
- * The Live Operations streams, opened ONCE for the whole page.
+ * The Live Operations streams, attached ONCE for the whole page.
  *
  * Every card on every tab reads from this provider. The host's DashboardTemplate
  * mounts and remounts card bodies as it lays out the grid and as tabs switch;
- * subscribing inside a card would open and close a feed each time. Opening them
- * here also keeps the trend history running while another tab is showing.
+ * subscribing inside a card would open and close a feed each time.
  *
- * Eight feeds, each with `useStream` (subscribes on mount, closes on unmount,
- * returns the status):
+ * The feeds themselves are not opened here. App.tsx opens all eight at startup
+ * with `sdk.streams.retain` (see liveFeeds.ts), so they have been collecting
+ * since the app loaded. Each `useStream` below passes `{ retain: key }`: on
+ * mount it is handed the latest copy of every record the feed has delivered —
+ * in one batch, so one render — and on unmount it detaches, leaving the feed
+ * running. Leave the page, come back, and nothing is missing.
  *
  *   queues.onDomainQueues({ stats })                         → queues
  *   queues.onDomainQueues({ agentUpdated, agentAdded, … })   → agents
@@ -41,7 +45,11 @@ import {
  *   subscribers.onDomain(update)                             → user record changes
  *   cdrs.onDomain({ completed, updated })                    → call records
  *
- * The queue drill-down opens an eighth, `queues.onQueue`, only while its panel
+ * The trend history and the call-record delivery log are history, which a
+ * retained feed does not give back, so liveFeeds.ts builds them in the
+ * background and this provider reads them.
+ *
+ * The queue drill-down opens a ninth, `queues.onQueue`, only while its panel
  * is open — see QueuePanel.tsx.
  */
 
@@ -57,47 +65,24 @@ function without<T>(map: Map<string, T>, key: string): Map<string, T> {
   return next;
 }
 
-/** Keep this many records and deliveries; the page is a live view, not a log. */
-const RECORDS_KEPT = 50;
-
 /**
- * The fields filled in after a call. A record arrives on `completed` with them
- * empty and again on `updated` as each one lands.
+ * Clear a feed's state when its session changes. The host reports 'pending'
+ * again after 'live' when it re-judges a stream (an admin switched the managed
+ * domain); the records held so far belong to the old session. The retained
+ * feed drops its own copy too, and hands over the new session's records once
+ * it is live again.
  */
-const LATE_FIELDS: [string, (r: CallRecord) => unknown][] = [
-  ['disposition', (r) => r.disposition],
-  ['reason', (r) => r.reason],
-  ['notes', (r) => r.notes],
-  ['recording', (r) => r.recordingStatus],
-  ['MOS (orig)', (r) => r.mos.orig],
-  ['MOS (term)', (r) => r.mos.term],
-  ['summary', (r) => r.summary],
-];
-
-function changedFields(
-  before: CallRecord | undefined,
-  after: CallRecord,
-): string[] {
-  if (!before) return [];
-  return LATE_FIELDS.filter(([, read]) => read(before) !== read(after)).map(
-    ([name]) => name,
-  );
-}
-
-/** Totals the headline numbers and the trend history are made of. */
-function totals(
-  queues: QueueStats[],
-  calls: CallActivity[],
-  devices: DeviceUpdate[],
-  presence: PresenceChange[],
-) {
-  return {
-    calls: calls.length,
-    waiting: queues.reduce((n, q) => n + q.waiting, 0),
-    agentsFree: queues.reduce((n, q) => n + q.agentsAvailable, 0),
-    registered: devices.filter((d) => d.registered).length,
-    available: presence.filter((p) => p.presence === 'open').length,
-  };
+function useResetOnPending(status: StreamStatus, reset: () => void) {
+  const wasLive = useRef(false);
+  useEffect(() => {
+    if (status.state === 'live') wasLive.current = true;
+    else if (status.state === 'pending' && wasLive.current) {
+      wasLive.current = false;
+      reset();
+    }
+    // `reset` is a fresh closure each render; only the state change matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.state]);
 }
 
 export function LiveProvider({
@@ -107,7 +92,20 @@ export function LiveProvider({
   sdk: RemoteAppSDK;
   children: ReactNode;
 }) {
-  const [queues, setQueues] = useState(new Map<string, QueueStats>());
+  // The starting state the streams do not send (see liveSeed.ts). LiveHistory
+  // reads it once per domain and keeps it, so a page opened after that starts
+  // from it synchronously: no flash of partial streamed state, no re-read.
+  const { api, user } = useFlowContext();
+  const { managing } = useManagingDomain();
+  const domain = managing || user?.domain;
+  const cached = domain ? liveHistory.seedFor(domain) : null;
+
+  const [queues, setQueues] = useState(
+    () =>
+      new Map<string, QueueStats>(
+        cached?.queues.map((q): [string, QueueStats] => [q.queue, q]),
+      ),
+  );
   const queueStatus = useStream(
     sdk,
     (streams) =>
@@ -115,11 +113,17 @@ export function LiveProvider({
         stats: (q) => setQueues((m) => upsert(m, q.queue, q)),
       }),
     [],
+    { retain: LIVE_FEEDS.queueStats },
   );
 
   // The same method again with other handlers: the host opens only the feeds a
   // subscription has handlers for, and shares the room with the one above.
-  const [agents, setAgents] = useState(new Map<string, AgentStatus>());
+  const [agents, setAgents] = useState(
+    () =>
+      new Map<string, AgentStatus>(
+        cached?.agents.map((a): [string, AgentStatus] => [agentKey(a), a]),
+      ),
+  );
   const agentStatus = useStream(
     sdk,
     (streams) =>
@@ -129,6 +133,7 @@ export function LiveProvider({
         agentRemoved: (a) => setAgents((m) => without(m, agentKey(a))),
       }),
     [],
+    { retain: LIVE_FEEDS.agents },
   );
 
   // Office Managers and Call Center Supervisors only; everyone else is refused
@@ -142,6 +147,7 @@ export function LiveProvider({
         ended: (c) => setCalls((m) => without(m, c.callId)),
       }),
     [],
+    { retain: LIVE_FEEDS.calls },
   );
 
   const [presence, setPresence] = useState(new Map<string, PresenceChange>());
@@ -152,10 +158,16 @@ export function LiveProvider({
         setPresence((m) => upsert(m, p.user, p)),
       ),
     [],
+    { retain: LIVE_FEEDS.presence },
   );
 
   // Admins see the domain's phones; Basic and Advanced Users only their own.
-  const [devices, setDevices] = useState(new Map<string, DeviceUpdate>());
+  const [devices, setDevices] = useState(
+    () =>
+      new Map<string, DeviceUpdate>(
+        cached?.devices.map((d): [string, DeviceUpdate] => [d.device, d]),
+      ),
+  );
   const deviceStatus = useStream(
     sdk,
     (streams) =>
@@ -163,6 +175,7 @@ export function LiveProvider({
         setDevices((m) => upsert(m, d.device, d)),
       ),
     [],
+    { retain: LIVE_FEEDS.devices },
   );
 
   // The signed-in user's own notifications and the domain's.
@@ -176,6 +189,7 @@ export function LiveProvider({
         ),
       ),
     [],
+    { retain: LIVE_FEEDS.notifications },
   );
 
   // Domain admins only: every user record change in the domain.
@@ -187,47 +201,81 @@ export function LiveProvider({
         setUserChanges((list) => [u, ...list].slice(0, 30)),
       ),
     [],
+    { retain: LIVE_FEEDS.users },
   );
 
-  // Domain admins only; everyone else is refused with the host's message. The previous version of each record is
-  // kept in a ref so a delivery can say what changed.
-  const lastRecord = useRef(new Map<string, CallRecord>());
+  // Domain admins only; everyone else is refused with the host's message. A
+  // changed record is delivered again with the same recordId: replace it.
   const [records, setRecords] = useState(new Map<string, CallRecord>());
-  const [recordDeliveries, setRecordDeliveries] = useState<RecordDelivery[]>(
-    [],
-  );
   const recordStatus = useStream(
     sdk,
-    (streams) => {
-      const receive = (kind: RecordDelivery['kind'], record: CallRecord) => {
-        const changed = changedFields(
-          lastRecord.current.get(record.recordId),
-          record,
-        );
-        lastRecord.current.set(record.recordId, record);
-        if (lastRecord.current.size > RECORDS_KEPT * 4) {
-          lastRecord.current.delete(lastRecord.current.keys().next().value!);
-        }
-        setRecords((m) => upsert(m, record.recordId, record));
-        setRecordDeliveries((list) =>
-          [
-            {
-              id: `${record.recordId}-${Date.now()}-${list.length}`,
-              kind,
-              record,
-              changed,
-              receivedAt: Date.now(),
-            },
-            ...list,
-          ].slice(0, RECORDS_KEPT),
-        );
-      };
-      return streams.cdrs.onDomain({
-        completed: (r) => receive('completed', r),
-        updated: (r) => receive('updated', r),
-      });
-    },
+    (streams) =>
+      streams.cdrs.onDomain({
+        completed: (r) => setRecords((m) => upsert(m, r.recordId, r)),
+        updated: (r) => setRecords((m) => upsert(m, r.recordId, r)),
+      }),
     [],
+    { retain: LIVE_FEEDS.records },
+  );
+
+  useResetOnPending(queueStatus, () => setQueues(new Map()));
+  useResetOnPending(agentStatus, () => setAgents(new Map()));
+  useResetOnPending(callStatus, () => setCalls(new Map()));
+  useResetOnPending(presenceStatus, () => setPresence(new Map()));
+  useResetOnPending(deviceStatus, () => setDevices(new Map()));
+  useResetOnPending(notificationStatus, () => setNotifications([]));
+  useResetOnPending(userStatus, () => setUserChanges([]));
+  useResetOnPending(recordStatus, () => setRecords(new Map()));
+
+  const [queueNames, setQueueNames] = useState(
+    () => cached?.queueNames ?? new Map<string, string>(),
+  );
+  const [userNames, setUserNames] = useState(
+    () => cached?.userNames ?? new Map<string, string>(),
+  );
+  useEffect(() => {
+    if (!api || !domain) return;
+    let cancelled = false;
+    liveHistory.loadSeed(api, domain).then((seed) => {
+      if (cancelled) return;
+      // Under what the streams delivered: a streamed record is never overwritten.
+      const under = <T,>(map: Map<string, T>, entries: [string, T][]) => {
+        const next = new Map(entries);
+        map.forEach((value, key) => next.set(key, value));
+        return next;
+      };
+      setQueues((m) =>
+        under(
+          m,
+          seed.queues.map((q) => [q.queue, q]),
+        ),
+      );
+      setAgents((m) =>
+        under(
+          m,
+          seed.agents.map((a) => [agentKey(a), a]),
+        ),
+      );
+      setDevices((m) =>
+        under(
+          m,
+          seed.devices.map((d) => [d.device, d]),
+        ),
+      );
+      setQueueNames(seed.queueNames);
+      setUserNames(seed.userNames);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // A session change clears LiveHistory's seed and these maps (on 'pending');
+    // the queue feed going live again re-runs this, so the new session is read.
+    // Otherwise the read is cached and this costs nothing.
+  }, [api, domain, queueStatus.state]);
+
+  const { history, recordDeliveries, outcomes } = useSyncExternalStore(
+    liveHistory.subscribe,
+    liveHistory.getSnapshot,
   );
 
   const [now, setNow] = useState(() => Date.now());
@@ -247,36 +295,13 @@ export function LiveProvider({
   );
   const presenceList = [...presence.values()];
 
-  // Sample the totals for the trend history. Read through a ref so the timer
-  // is set up once rather than on every frame.
-  const latest = useRef(totals(queueList, callList, deviceList, presenceList));
-  latest.current = totals(queueList, callList, deviceList, presenceList);
-  const [history, setHistory] = useState<Sample[]>([]);
-  useEffect(() => {
-    const take = () =>
-      setHistory((h) =>
-        [
-          ...h,
-          {
-            label: new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            }),
-            ...latest.current,
-          },
-        ].slice(-HISTORY_POINTS),
-      );
-    take();
-    const id = setInterval(take, SAMPLE_MS);
-    return () => clearInterval(id);
-  }, []);
-
-  const nameOf = (user: string) => {
-    const p = presence.get(user);
+  const nameOf = (u: string) => {
+    const p = presence.get(u);
     const name = p ? `${p.firstName} ${p.lastName}`.trim() : '';
-    return name || user;
+    return name || userNames.get(u) || u;
   };
+  const queueName = (queue: string) =>
+    queueNames.get(queue) ?? `Queue ${queue}`;
 
   const state: LiveState = {
     sdk,
@@ -302,8 +327,10 @@ export function LiveProvider({
     recordDeliveries,
     recordStatus,
     history,
+    outcomes,
     now,
     nameOf,
+    queueName,
   };
   return <LiveContext.Provider value={state}>{children}</LiveContext.Provider>;
 }
