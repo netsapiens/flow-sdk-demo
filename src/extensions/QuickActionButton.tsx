@@ -23,8 +23,8 @@ export function QuickActionButton({
     context.pageContext as { row?: Record<string, unknown> } | undefined
   )?.row;
   const { IconButton } = context.ui ?? {};
-  // Pass context.eventBus: extension components render outside FlowContextProvider.
-  const { open } = useSidePanel(context.eventBus);
+  // Pass `context`: extension components render outside FlowContextProvider.
+  const { open } = useSidePanel(context);
 
   if (!row) return null;
 

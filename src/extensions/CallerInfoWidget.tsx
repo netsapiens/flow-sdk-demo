@@ -8,11 +8,7 @@ import { useEffect, useState } from 'react';
 
 import type { CallerInfo } from '../services/callEnrichment';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
-import {
-  activeCallsStore,
-  CALL_REMOVED_EVENT,
-  CALL_UPDATED_EVENT,
-} from '../services/callEnrichment';
+import { activeCallsStore, onCallChanges } from '../services/callEnrichment';
 
 export function CallerInfoWidget({
   context,
@@ -26,35 +22,13 @@ export function CallerInfoWidget({
   const [activeCalls, setActiveCalls] = useState<CallerInfo[]>([]);
 
   useEffect(() => {
-    if (!context.eventBus) return;
-
-    const updateActiveCalls = () =>
-      setActiveCalls(Array.from(activeCallsStore.values()));
-
-    // The event bus is string-keyed and typed `(data: unknown) => void`, so
-    // check the one field we key the store by rather than trusting the payload.
-    const handleCallUpdate = (data: unknown) => {
-      const info = data as CallerInfo | undefined;
-      if (typeof info?.callId !== 'string') return;
-      activeCallsStore.set(info.callId, info);
-      updateActiveCalls();
-    };
-
-    const handleCallRemoved = (data: unknown) => {
-      if (typeof data !== 'string') return;
-      activeCallsStore.delete(data);
-      updateActiveCalls();
-    };
-
-    context.eventBus.on(CALL_UPDATED_EVENT, handleCallUpdate);
-    context.eventBus.on(CALL_REMOVED_EVENT, handleCallRemoved);
-    updateActiveCalls();
-
-    return () => {
-      context.eventBus?.off(CALL_UPDATED_EVENT, handleCallUpdate);
-      context.eventBus?.off(CALL_REMOVED_EVENT, handleCallRemoved);
-    };
-  }, [context.eventBus]);
+    // activeCallsStore holds every active call; the enrichment service (fed by
+    // the softphone stream in App.tsx) tells us when it changes. Read it once
+    // now, so a card mounted mid-call has something to show.
+    const sync = () => setActiveCalls(Array.from(activeCallsStore.values()));
+    sync();
+    return onCallChanges({ updated: sync, removed: sync });
+  }, []);
 
   const ringingCall = activeCalls.find((call) => call.status === 'ringing');
   // Only render when there's a ringing call AND the CRM actually matched it.

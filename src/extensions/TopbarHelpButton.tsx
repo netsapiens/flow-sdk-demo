@@ -18,8 +18,8 @@ export function TopbarHelpButton({
   ...marker
 }: ExtensionComponentProps & ZoneMarkerProps) {
   const { Button, Icon, Tooltip } = context.ui ?? {};
-  // Pass context.eventBus: extension components render outside FlowContextProvider.
-  const { open } = useSidePanel(context.eventBus);
+  // Pass `context`: extension components render outside FlowContextProvider.
+  const { open } = useSidePanel(context);
 
   const handleClick = () => {
     open({

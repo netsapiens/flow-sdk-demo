@@ -61,11 +61,7 @@ import type { CallerInfo } from '../services/callEnrichment';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
 import { buildSampleCalls } from '../mocks/liveCalls';
 import { CallDetailsPanel } from '../panels/CallDetailsPanel';
-import {
-  activeCallsStore,
-  CALL_REMOVED_EVENT,
-  CALL_UPDATED_EVENT,
-} from '../services/callEnrichment';
+import { activeCallsStore, onCallChanges } from '../services/callEnrichment';
 
 type StatusFilter = 'all' | 'ringing' | 'answered';
 
@@ -145,7 +141,7 @@ export function LiveCallsWidget({
 
   // A widget renders outside FlowContextProvider, exactly as a zone
   // extension does, so the hook is handed the bus rather than reading context.
-  const { open } = useSidePanel(context.eventBus);
+  const { open } = useSidePanel(context);
   const navigate = context.navigate;
 
   const [live, setLive] = useState<CallerInfo[]>([]);
@@ -154,35 +150,13 @@ export function LiveCallsWidget({
   const [enriched, setEnriched] = useState(true);
 
   useEffect(() => {
-    if (!context.eventBus) return;
-
+    // The enrichment service keeps activeCallsStore and tells us when it
+    // changes. Seed from the store: a console added mid-call should not wait
+    // for the next change to have anything to say.
     const sync = () => setLive(Array.from(activeCallsStore.values()));
-
-    // The bus is string-keyed and typed `(data: unknown) => void`, so check the
-    // field the store is keyed by rather than trusting the payload.
-    const onUpdated = (data: unknown) => {
-      const info = data as CallerInfo | undefined;
-      if (typeof info?.callId !== 'string') return;
-      activeCallsStore.set(info.callId, info);
-      sync();
-    };
-    const onRemoved = (data: unknown) => {
-      if (typeof data !== 'string') return;
-      activeCallsStore.delete(data);
-      sync();
-    };
-
-    context.eventBus.on(CALL_UPDATED_EVENT, onUpdated);
-    context.eventBus.on(CALL_REMOVED_EVENT, onRemoved);
-    // Seed from the store: a console added mid-call should not wait for the
-    // next event to have anything to say.
     sync();
-
-    return () => {
-      context.eventBus?.off(CALL_UPDATED_EVENT, onUpdated);
-      context.eventBus?.off(CALL_REMOVED_EVENT, onRemoved);
-    };
-  }, [context.eventBus]);
+    return onCallChanges({ updated: sync, removed: sync });
+  }, []);
 
   // One clock for every row, rather than a timer per card.
   const [nowMs, setNowMs] = useState(() => Date.now());

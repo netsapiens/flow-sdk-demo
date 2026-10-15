@@ -36,7 +36,7 @@ import { crmStatusOf } from '../mocks/crmStatus';
 interface CrmStatusProps {
   /** DataGrid renderCell params — only the row record is read here. */
   params: { row: Record<string, unknown> };
-  /** Host-built extension context (`ui`, `theme`, `t`, scoped `eventBus`). */
+  /** Host-built extension context (`ui`, `theme`, `t`, side-panel methods). */
   context: ExtensionContext;
 }
 

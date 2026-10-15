@@ -359,12 +359,12 @@ sdk.registerWidget({
 // refreshPolicy declares where your data comes from, and the host acts on it:
 //   'shared-range' → you get widget.range as resolved from/to timestamps
 //   'own-cadence'  → no range; you own the timer  (CRM sync queue)
-//   'realtime'     → no range; data arrives by push on your scoped event bus
+//   'realtime'     → no range; data arrives by push (sdk.streams)
 //   omitted        → nothing goes stale, so ask for nothing  (Demo app links)
 
 // Two more gates, answering different questions:
 //   requiredPermissions: ['streams:softphone']   // what the APP was granted
-//   condition: (context) => Boolean(context.eventBus)  // your own, run last
+//   condition: (context) => Boolean(context.user?.username)  // your own, run last
 
 // Your component receives { context, widget, actions }:
 function RecentActivityWidget({ context, widget, actions }) {
@@ -391,12 +391,22 @@ const status = useStream(
 );
 if (status.state === 'refused') return <Alert>{status.message}</Alert>;
 
+// Keep a feed for the session, not the page (0.3.3+): retain it at startup...
+sdk.streams.retain('domain-queues', (streams) =>
+  streams.queues.onDomainQueues({ stats: (q) => totals.set(q.queue, q) }),
+);
+// ...and attach in the page: every kept record arrives at once on mount.
+useStream(sdk, (s) => s.queues.onDomainQueues({ stats: setStats }), [], {
+  retain: 'domain-queues',
+});
+// 'pending' after 'live' means the session changed: clear what you hold.
+
 call.unsubscribe();`,
   },
   {
     title: 'Open the side panel from anywhere',
-    code: `// From any extension component (row action, header button, …):
-const { open } = useSidePanel(context.eventBus);
+    code: `// From any extension, widget or column component, with its own context:
+const { open } = useSidePanel(context);
 
 open({
   title: 'Call details',

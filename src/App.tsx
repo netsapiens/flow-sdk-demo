@@ -3,7 +3,7 @@
  *
  * This is the orchestrator: it initializes the SDK and, in a single effect,
  * registers everything the demo contributes to the host —
- *   - 6 full-page routes       (sdk.registerRoute)
+ *   - 7 full-page routes       (sdk.registerRoute)
  *   - 10 zone extensions        (sdk.registerDynamicExtension)
  *   - 1 dynamic table column    (sdk.registerDynamicColumn)
  *   - 9 dashboard widgets       (sdk.registerWidget)
@@ -432,14 +432,11 @@ export default function App(flowContext: FlowContext) {
     // ============================================================
     // 2. CALL EVENTS — enrich inbound calls from the mock CRM
     // ============================================================
-    // The signed-in user's own softphone, through sdk.streams (NOT the raw
-    // event bus): the host checks this app's `softphone` grant on every event.
+    // The signed-in user's own softphone, through sdk.streams: the host checks
+    // this app's `softphone` grant on every event.
     // One method per lifecycle step, all feeding the same handler, which lives
     // in services/callEnrichment.ts.
-    const onCall = createCallEventHandler(
-      flowContext.eventBus,
-      user?.extension ?? '',
-    );
+    const onCall = createCallEventHandler(user?.extension ?? '');
     const softphoneStreams = [
       sdk.streams.softphone.onCallStarted(onCall),
       sdk.streams.softphone.onCallAnswered(onCall),
@@ -465,10 +462,6 @@ export default function App(flowContext: FlowContext) {
       sdk.registerDynamicExtension(ext);
     }
 
-    // Dynamic "Priority" column merged into the call-logs table. The host's
-    // DataTable derives the `call-logs-columns` zone from the route and merges
-    // registered columns into the grid. Each rendered cell is tagged with the
-    // manifest testId so the suite can assert the column mounted.
     // "CRM Status (SDK)" merged into the host's domain Contacts grid. The
     // host's DataTable derives the `contacts-columns` zone from the route and
     // merges registered columns into the grid. Each rendered cell carries the
@@ -513,7 +506,7 @@ export default function App(flowContext: FlowContext) {
         // Alignment is handled by the SDK — registered columns default to
         // right-aligned (matching native columns) unless a column overrides it.
         // Second argument is the host-built extension context — the same `ui`,
-        // `theme`, `t` and app-scoped `eventBus` a zone extension receives. The
+        // `theme`, `t` and side-panel methods a zone extension receives. The
         // cell renders from `context.ui`, so it re-themes with the host toggle.
         renderCell: (params, context) => (
           <CrmStatusCell
@@ -687,11 +680,12 @@ export default function App(flowContext: FlowContext) {
       // offers a card that could only ever be empty. Same grant the softphone
       // streams are checked against, declared where a dashboard sees it.
       requiredPermissions: ['streams:softphone'],
-      // The app's own predicate, evaluated last and on every read. This widget
-      // cannot render without the bus, so it declines to be offered without one.
+      // The app's own predicate, evaluated last and on every read. The widget
+      // shows the signed-in user's own softphone calls, so a context with no
+      // signed-in user could only ever show an empty card: don't offer it.
       // A condition that throws hides the widget rather than taking the
       // dashboard down with it, so being strict here is free.
-      condition: (context) => Boolean(context.eventBus),
+      condition: (context) => Boolean(context.user?.username),
       component: LiveCallsWidgetTagged,
     });
 
@@ -797,7 +791,6 @@ export default function App(flowContext: FlowContext) {
     };
   }, [
     sdk,
-    flowContext.eventBus,
     user?.extension,
     DemoPageWithContext,
     LiveOperationsPageWithContext,
