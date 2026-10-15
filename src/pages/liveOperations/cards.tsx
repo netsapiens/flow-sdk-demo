@@ -26,6 +26,7 @@ import {
   waitTone,
 } from './format';
 import {
+  agentCounts,
   agentKey,
   missedPctOf,
   QueuePickContext,
@@ -79,9 +80,9 @@ function Stat({
 }
 
 export function WaitingStat() {
-  const { queues, queueStatus } = useLive();
+  const { queues, queueStatus, agents } = useLive();
   const waiting = queues.reduce((n, q) => n + q.waiting, 0);
-  const free = queues.reduce((n, q) => n + q.agentsAvailable, 0);
+  const { free } = agentCounts(agents);
   return (
     <Stat
       status={queueStatus}
@@ -125,15 +126,15 @@ export function LongestWaitStat() {
 }
 
 export function AgentsFreeStat() {
-  const { queues, queueStatus } = useLive();
-  const free = queues.reduce((n, q) => n + q.agentsAvailable, 0);
-  const loggedIn = queues.reduce((n, q) => n + q.agentsLoggedIn, 0);
+  const { agents, agentStatus } = useLive();
+  // People, not a sum of each queue's count: an agent in three queues is one.
+  const { free, total } = agentCounts(agents);
   return (
     <Stat
-      status={queueStatus}
+      status={agentStatus}
       metric='agentsFree'
-      value={`${free} / ${loggedIn}`}
-      caption='free of logged in'
+      value={`${free} / ${total}`}
+      caption='free of agents in queues'
       tone={free > 0 ? 'success' : 'warning'}
     />
   );
@@ -226,7 +227,7 @@ export function ActivityChart() {
       <Empty
         icon='mdi:chart-areaspline'
         title='Collecting'
-        description='The trend fills in every ten seconds while this page is open.'
+        description='The trend fills in every ten seconds, from when the app loaded.'
       />
     );
   }
@@ -267,7 +268,7 @@ function Toned({ tone, children }: { tone: Tone; children: ReactNode }) {
 
 export function QueuesCard() {
   const { ui } = useFlowContext();
-  const { queues, queueStatus, now } = useLive();
+  const { queues, queueStatus, now, queueName } = useLive();
   const pick = useContext(QueuePickContext);
   const { Table, TableHead, TableBody, TableRow, TableCell, Typography } =
     ui ?? {};
@@ -314,6 +315,9 @@ export function QueuesCard() {
                 >
                   <TableCell>
                     <Typography variant='body2' fontWeight={600}>
+                      {queueName(q.queue)}
+                    </Typography>
+                    <Typography variant='caption' color='text.secondary'>
                       {q.queue}
                     </Typography>
                   </TableCell>
@@ -540,18 +544,22 @@ function mos(r: CallRecord): string {
 
 export function RecordsStat() {
   const { ui } = useFlowContext();
-  const { records, recordStatus } = useLive();
+  const { outcomes, recordStatus } = useLive();
   const StatBlock = ui?.StatBlock;
   if (!StatBlock) return null;
   if (isBlocked(recordStatus))
     return (
       <StatBlock value='—' caption='Not available to you' tone='neutral' />
     );
-  const missed = records.filter((r) => r.direction === 'missed').length;
+  // Running totals since the app loaded, not `records`, which holds only the
+  // latest RECORDS_KEPT for the table.
+  const { missed } = outcomes;
+  const ended =
+    outcomes.answered + outcomes.missed + outcomes.outbound + outcomes.internal;
   return (
     <StatBlock
-      value={records.length}
-      caption={missed ? `${missed} missed` : 'since this page opened'}
+      value={ended}
+      caption={missed ? `${missed} missed` : 'since the app loaded'}
       tone={missed ? 'warning' : 'primary'}
     />
   );

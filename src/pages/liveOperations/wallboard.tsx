@@ -6,11 +6,11 @@
  * so the board follows the host's dark/light toggle. Data comes from
  * LiveProvider; nothing here subscribes.
  */
-import type { AgentStatus } from '@netsapiens/flow-sdk';
 import { useContext } from 'react';
 import { useFlowContext } from '@netsapiens/flow-sdk';
 
 import type { Tone } from './format';
+import type { AgentState } from './liveContext';
 import {
   chipColor,
   CRITICAL_WAIT_SEC,
@@ -19,7 +19,7 @@ import {
   since,
   waitTone,
 } from './format';
-import { QueuePickContext, useLive, waitOf } from './liveContext';
+import { foldAgents, QueuePickContext, useLive, waitOf } from './liveContext';
 import { CardBody, Empty } from './parts';
 
 /** A tone as a palette path; neutral is the muted text colour. */
@@ -36,7 +36,7 @@ const paletteOf = (tone: Tone) =>
  */
 export function LongestWaitsCard() {
   const { ui } = useFlowContext();
-  const { queues, queueStatus, now } = useLive();
+  const { queues, queueStatus, now, queueName } = useLive();
   const pick = useContext(QueuePickContext);
   const { Avatar, Chip, List, ListItem, ListItemText, Stack, Typography } =
     ui ?? {};
@@ -97,7 +97,7 @@ export function LongestWaitsCard() {
                   {i + 1}
                 </Avatar>
                 <ListItemText
-                  primary={`Queue ${q.queue}`}
+                  primary={queueName(q.queue)}
                   secondary={`${q.waiting} waiting · ${q.agentsAvailable} of ${q.agentsLoggedIn} agents free`}
                 />
               </ListItem>
@@ -111,45 +111,12 @@ export function LongestWaitsCard() {
 
 // ── Agent status board ───────────────────────────────────────────────────────
 
-type AgentState = 'oncall' | 'available' | 'unavailable' | 'oos';
-
 const STATES: Record<AgentState, { label: string; tone: Tone }> = {
   oncall: { label: 'On a call', tone: 'info' },
   available: { label: 'Available', tone: 'success' },
   unavailable: { label: 'Unavailable', tone: 'warning' },
   oos: { label: 'Out of service', tone: 'neutral' },
 };
-
-/**
- * One tile per person. The stream reports an agent once per queue they belong
- * to, so fold those memberships: on a call in any queue beats available in any,
- * and the time shown runs from the most recent change.
- */
-function foldAgents(agents: AgentStatus[]) {
-  const people = new Map<string, { state: AgentState; changedAt: string }>();
-  for (const a of agents) {
-    const state: AgentState =
-      a.activeCalls > 0
-        ? 'oncall'
-        : a.device === 'oos'
-          ? 'oos'
-          : a.status === 'available'
-            ? 'available'
-            : 'unavailable';
-    const seen = people.get(a.user);
-    const rank = (s: AgentState) =>
-      ['oncall', 'available', 'unavailable', 'oos'].indexOf(s);
-    if (!seen) {
-      people.set(a.user, { state, changedAt: a.updatedAt });
-      continue;
-    }
-    people.set(a.user, {
-      state: rank(state) < rank(seen.state) ? state : seen.state,
-      changedAt: a.updatedAt > seen.changedAt ? a.updatedAt : seen.changedAt,
-    });
-  }
-  return people;
-}
 
 export function AgentBoardCard() {
   const { ui } = useFlowContext();
@@ -226,7 +193,9 @@ export function AgentBoardCard() {
                             noWrap
                             sx={{ fontVariantNumeric: 'tabular-nums' }}
                           >
-                            {label} · {fmtSeconds(since(p.changedAt, now))}
+                            {p.changedAt
+                              ? `${label} · ${fmtSeconds(since(p.changedAt, now))}`
+                              : label}
                           </Typography>
                         </Stack>
                       </Stack>
@@ -265,7 +234,7 @@ export function OutcomesCard() {
       ) : (
         <Donut
           height={240}
-          centerLabel={`${total} calls`}
+          centerLabel={`${total} ${total === 1 ? 'call' : 'calls'}`}
           slices={[
             { label: 'Answered', value: o.answered, tone: 'success' },
             { label: 'Missed', value: o.missed, tone: 'error' },

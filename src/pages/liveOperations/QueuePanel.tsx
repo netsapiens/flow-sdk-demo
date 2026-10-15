@@ -247,13 +247,14 @@ export function QueuePanel({
   onClose: () => void;
 }) {
   const { ui } = useFlowContext();
+  const { queueName } = useLive();
   const SidePanel = ui?.templates?.SidePanel;
   if (!SidePanel) return null;
   return (
     <SidePanel
       open={queue !== null}
       onClose={onClose}
-      title={queue ? `Queue ${queue}` : 'Queue'}
+      title={queue ? queueName(queue) : 'Queue'}
       subtitle='Live detail from queues.onQueue'
       width='md'
     >

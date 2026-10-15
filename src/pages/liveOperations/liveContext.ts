@@ -23,6 +23,7 @@ export interface Sample {
   waiting: number;
   /** Seconds the oldest waiting caller has waited, across every queue. */
   longestWait: number;
+  /** People free to take a call (see agentCounts), not a per-queue sum. */
   agentsFree: number;
   registered: number;
   available: number;
@@ -73,6 +74,8 @@ export interface LiveState {
   now: number;
   /** Display name for a user, from whatever the page has seen of them. */
   nameOf: (user: string) => string;
+  /** A queue's description from the API, or "Queue <number>". */
+  queueName: (queue: string) => string;
 }
 
 /** Trend sampling: every 10 s, 15 minutes kept. */
@@ -89,6 +92,52 @@ export function useLive(): LiveState {
 }
 
 export const agentKey = (a: AgentStatus) => `${a.queue}|${a.agent}`;
+
+export type AgentState = 'oncall' | 'available' | 'unavailable' | 'oos';
+
+const STATE_RANK: AgentState[] = ['oncall', 'available', 'unavailable', 'oos'];
+
+/**
+ * One entry per person. The stream reports an agent once per queue they belong
+ * to, so fold those memberships: on a call in any queue beats available in any,
+ * and the change time is the most recent. Every "how many agents" figure on
+ * the page counts these, so an agent in three queues is one agent, not three.
+ */
+export function foldAgents(agents: AgentStatus[]) {
+  const people = new Map<string, { state: AgentState; changedAt: string }>();
+  for (const a of agents) {
+    const state: AgentState =
+      a.activeCalls > 0
+        ? 'oncall'
+        : a.device === 'oos'
+          ? 'oos'
+          : a.status === 'available'
+            ? 'available'
+            : 'unavailable';
+    const seen = people.get(a.user);
+    if (!seen) {
+      people.set(a.user, { state, changedAt: a.updatedAt });
+      continue;
+    }
+    people.set(a.user, {
+      state:
+        STATE_RANK.indexOf(state) < STATE_RANK.indexOf(seen.state)
+          ? state
+          : seen.state,
+      changedAt: a.updatedAt > seen.changedAt ? a.updatedAt : seen.changedAt,
+    });
+  }
+  return people;
+}
+
+/** People free to take a call, and people in any queue at all. */
+export function agentCounts(agents: AgentStatus[]) {
+  const people = [...foldAgents(agents).values()];
+  return {
+    free: people.filter((p) => p.state === 'available').length,
+    total: people.length,
+  };
+}
 
 /**
  * How long a queue's oldest caller has waited, counted up to `now`. The stats

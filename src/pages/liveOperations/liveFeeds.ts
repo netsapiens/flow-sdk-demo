@@ -1,5 +1,7 @@
 import type {
+  AgentStatus,
   CallRecord,
+  FlowApiClient,
   QueueStats,
   RemoteAppSDK,
   StreamClient,
@@ -7,7 +9,10 @@ import type {
 } from '@netsapiens/flow-sdk';
 
 import type { Outcomes, RecordDelivery, Sample } from './liveContext';
+import type { LiveSeed } from './liveSeed';
 import {
+  agentCounts,
+  agentKey,
   countOutcome,
   HISTORY_POINTS,
   missedPctOf,
@@ -15,6 +20,7 @@ import {
   SAMPLE_MS,
   waitOf,
 } from './liveContext';
+import { loadSeed } from './liveSeed';
 
 /**
  * The Live Operations feeds, opened at startup and kept for the session.
@@ -88,6 +94,11 @@ export interface LiveHistorySnapshot {
 class LiveHistory {
   // Just enough state to total up a sample.
   private queues = new Map<string, QueueStats>();
+  private agents = new Map<string, AgentStatus>();
+  private seedCache: { domain: string; seed: LiveSeed } | null = null;
+  private seedLoading: { domain: string; promise: Promise<LiveSeed> } | null =
+    null;
+  private trimmedAtSeed = false;
   private calls = new Set<string>();
   private registered = new Map<string, boolean>();
   private available = new Map<string, boolean>();
@@ -105,6 +116,11 @@ class LiveHistory {
   /** Retain every feed and start sampling. Safe to call twice. */
   start(sdk: RemoteAppSDK): void {
     if (this.timer) return;
+    /**
+     * Keep a feed open for the life of the app. `retain` calls these handlers
+     * for every delivery (flow-sdk 0.3.5 and later), and keeps the latest copy
+     * of each record for a page that attaches with `useStream(…, { retain })`.
+     */
     const retain = (
       key: string,
       subscribe: (streams: StreamClient) => Subscription,
@@ -133,9 +149,9 @@ class LiveHistory {
     );
     retain(LIVE_FEEDS.agents, (s) =>
       s.queues.onDomainQueues({
-        agentUpdated: noop,
-        agentAdded: noop,
-        agentRemoved: noop,
+        agentUpdated: (a) => this.agents.set(agentKey(a), a),
+        agentAdded: (a) => this.agents.set(agentKey(a), a),
+        agentRemoved: (a) => this.agents.delete(agentKey(a)),
       }),
     );
     retain(LIVE_FEEDS.calls, (s) =>
@@ -185,13 +201,66 @@ class LiveHistory {
   getSnapshot = (): LiveHistorySnapshot => this.snapshot;
 
   /**
+   * The starting state the streams do not send (see liveSeed.ts), read once
+   * per domain and kept for the life of the app, like the feeds. A page that
+   * opens later applies it synchronously (`seedFor`), so returning to the page
+   * neither flashes the partial streamed state nor re-reads the API.
+   */
+  seedFor(domain: string): LiveSeed | null {
+    return this.seedCache?.domain === domain ? this.seedCache.seed : null;
+  }
+
+  /** Read the seed for `domain`, once; later calls get the same result. */
+  loadSeed(api: FlowApiClient, domain: string): Promise<LiveSeed> {
+    const cached = this.seedFor(domain);
+    if (cached) return Promise.resolve(cached);
+    if (this.seedLoading?.domain === domain) return this.seedLoading.promise;
+    const promise = loadSeed(api, domain).then((seed) => {
+      // A session change while the read was in flight makes it stale.
+      if (this.seedLoading?.promise !== promise) return seed;
+      this.seedLoading = null;
+      this.seedCache = { domain, seed };
+      this.applySeed(seed);
+      return seed;
+    });
+    this.seedLoading = { domain, promise };
+    return promise;
+  }
+
+  /**
+   * Put the seed under what the feeds have delivered (a streamed record is
+   * never overwritten). The samples taken before the FIRST seed of a session
+   * counted nothing, so they are dropped rather than drawn as a climb from
+   * zero; after that the history is never touched here.
+   */
+  private applySeed(seed: LiveSeed): void {
+    for (const q of seed.queues)
+      if (!this.queues.has(q.queue)) this.queues.set(q.queue, q);
+    for (const a of seed.agents)
+      if (!this.agents.has(agentKey(a))) this.agents.set(agentKey(a), a);
+    for (const d of seed.devices)
+      if (!this.registered.has(d.device))
+        this.registered.set(d.device, d.registered);
+    if (!this.trimmedAtSeed) {
+      this.trimmedAtSeed = true;
+      this.publish({ history: [] });
+    }
+    this.sample();
+  }
+
+  /**
    * Drop what one feed delivered under the old session. The trend history is
    * cleared too: a line spanning two domains would read as one domain's
    * change. Each feed goes 'pending' on a session change, so this runs once
    * per feed; clearing twice is harmless.
    */
   private resetFeed(key: string): void {
+    // The seed described the old session too: read it again for the new one.
+    this.seedCache = null;
+    this.seedLoading = null;
+    this.trimmedAtSeed = false;
     if (key === LIVE_FEEDS.queueStats) this.queues.clear();
+    if (key === LIVE_FEEDS.agents) this.agents.clear();
     if (key === LIVE_FEEDS.calls) this.calls.clear();
     if (key === LIVE_FEEDS.devices) this.registered.clear();
     if (key === LIVE_FEEDS.presence) this.available.clear();
@@ -222,7 +291,7 @@ class LiveHistory {
       calls: this.calls.size,
       waiting: queues.reduce((n, q) => n + q.waiting, 0),
       longestWait: queues.reduce((n, q) => Math.max(n, waitOf(q, now)), 0),
-      agentsFree: queues.reduce((n, q) => n + q.agentsAvailable, 0),
+      agentsFree: agentCounts([...this.agents.values()]).free,
       registered: count(this.registered),
       available: count(this.available),
       answered: outcomes.answered,
