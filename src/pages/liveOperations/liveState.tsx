@@ -95,9 +95,15 @@ export function LiveProvider({
   // The starting state the streams do not send (see liveSeed.ts). LiveHistory
   // reads it once per domain and keeps it, so a page opened after that starts
   // from it synchronously: no flash of partial streamed state, no re-read.
-  const { api, user } = useFlowContext();
+  //
+  // The domain is `~` (the API resolves it to the signed-in session's domain)
+  // unless an admin is managing one. Not `flowContext.user.domain`: Flow does
+  // not reload apps after a masquerade, so that stays the original user's
+  // domain, and re-reading it after the session changed put the original
+  // domain's queues and agents back on the page.
+  const { api } = useFlowContext();
   const { managing } = useManagingDomain();
-  const domain = managing || user?.domain;
+  const domain = managing || '~';
   const cached = domain ? liveHistory.seedFor(domain) : null;
 
   const [queues, setQueues] = useState(
