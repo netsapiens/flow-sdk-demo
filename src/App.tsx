@@ -8,6 +8,7 @@
  *   - 1 dynamic table column    (sdk.registerDynamicColumn)
  *   - 9 dashboard widgets       (sdk.registerWidget)
  *   - 4 softphone streams       (sdk.streams.softphone)
+ *   - 8 retained live feeds     (sdk.streams.retain, for Live Operations)
  *
  * Pattern-based extensions need no pre-defined extension points — each
  * registration targets a zone plus one or more route patterns, and the host
@@ -61,6 +62,7 @@ import ComponentShowcasePage from './pages/ComponentShowcasePage';
 import CrmIntegrationPage from './pages/CrmIntegrationPage';
 import DemoPage from './pages/DemoPage';
 import DomainCrmSyncPage from './pages/DomainCrmSyncPage';
+import { liveHistory } from './pages/liveOperations/liveFeeds';
 import LiveOperationsPage from './pages/liveOperations/LiveOperationsPage';
 import VendorDashboardPage from './pages/VendorDashboardPage';
 import { createCallEventHandler } from './services/callEnrichment';
@@ -445,6 +447,11 @@ export default function App(flowContext: FlowContext) {
       sdk.streams.softphone.onCallEnded(onCall),
     ];
 
+    // Live Operations: open its eight feeds now, not when the page is first
+    // opened, and keep them for the session. The page attaches to them and is
+    // handed everything they collected while it was closed. See liveFeeds.ts.
+    liveHistory.start(sdk);
+
     // ============================================================
     // 3. DYNAMIC EXTENSIONS + COLUMN — inject into host zones
     // ============================================================
@@ -773,6 +780,7 @@ export default function App(flowContext: FlowContext) {
 
     return () => {
       softphoneStreams.forEach((stream) => stream.unsubscribe());
+      liveHistory.stop();
       // By the same plain names they were registered under — the host resolves
       // the prefix, here as at registration. A container is withdrawn like any
       // other widget; the host keeps its slot and shows the leaves as pending

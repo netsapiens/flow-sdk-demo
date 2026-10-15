@@ -11,13 +11,28 @@ import type {
   FlowNotification,
   StreamStatus,
 } from '@netsapiens/flow-sdk';
+import type { ReactNode } from 'react';
 import { useContext } from 'react';
 import { useFlowContext } from '@netsapiens/flow-sdk';
 
 import type { Tone } from './format';
 import type { Sample } from './liveContext';
-import { chipColor, fmtSeconds, initials, isBlocked, since } from './format';
-import { agentKey, QueuePickContext, useLive } from './liveContext';
+import {
+  chipColor,
+  CRITICAL_WAIT_SEC,
+  fmtSeconds,
+  initials,
+  isBlocked,
+  since,
+  waitTone,
+} from './format';
+import {
+  agentKey,
+  missedPctOf,
+  QueuePickContext,
+  useLive,
+  waitOf,
+} from './liveContext';
 import { CardBody, Empty } from './parts';
 
 // ── Headline leaves ──────────────────────────────────────────────────────────
@@ -40,7 +55,7 @@ function Stat({
 }: {
   status: StreamStatus;
   metric: keyof Omit<Sample, 'label'>;
-  value: number;
+  value: number | string;
   caption: string;
   tone: Tone;
 }) {
@@ -67,14 +82,45 @@ function Stat({
 export function WaitingStat() {
   const { queues, queueStatus } = useLive();
   const waiting = queues.reduce((n, q) => n + q.waiting, 0);
-  const longest = queues.reduce((n, q) => Math.max(n, q.longestWaitSec), 0);
+  const free = queues.reduce((n, q) => n + q.agentsAvailable, 0);
   return (
     <Stat
       status={queueStatus}
       metric='waiting'
       value={waiting}
-      caption={waiting ? `longest ${fmtSeconds(longest)}` : 'no one waiting'}
-      tone={waiting > 0 ? 'warning' : 'success'}
+      caption={
+        waiting === 0
+          ? 'no one waiting'
+          : free === 0
+            ? 'no agent free'
+            : `${free} agent${free === 1 ? '' : 's'} free`
+      }
+      tone={waiting === 0 ? 'success' : free === 0 ? 'error' : 'warning'}
+    />
+  );
+}
+
+export function LongestWaitStat() {
+  const { queues, queueStatus, now } = useLive();
+  let longest = 0;
+  let where = '';
+  for (const q of queues) {
+    const wait = waitOf(q, now);
+    if (wait > longest) [longest, where] = [wait, q.queue];
+  }
+  return (
+    <Stat
+      status={queueStatus}
+      metric='longestWait'
+      value={longest ? fmtSeconds(longest) : '—'}
+      caption={
+        !longest
+          ? 'no one waiting'
+          : longest >= CRITICAL_WAIT_SEC
+            ? `critical · queue ${where}`
+            : `queue ${where}`
+      }
+      tone={longest ? waitTone(longest) : 'success'}
     />
   );
 }
@@ -87,8 +133,8 @@ export function AgentsFreeStat() {
     <Stat
       status={queueStatus}
       metric='agentsFree'
-      value={free}
-      caption={`of ${loggedIn} logged in`}
+      value={`${free} / ${loggedIn}`}
+      caption='free of logged in'
       tone={free > 0 ? 'success' : 'warning'}
     />
   );
@@ -118,6 +164,39 @@ export function PhonesStat() {
       value={registered}
       caption={`of ${devices.length} seen`}
       tone={registered === devices.length ? 'success' : 'warning'}
+    />
+  );
+}
+
+/**
+ * Inbound outcomes since the app loaded (running totals, see liveFeeds.ts).
+ * Records are domain admins only, so everyone else sees "not available".
+ */
+export function AnsweredStat() {
+  const { outcomes, recordStatus } = useLive();
+  const { answered, missed } = outcomes;
+  return (
+    <Stat
+      status={recordStatus}
+      metric='answered'
+      value={answered}
+      caption={`of ${answered + missed} inbound`}
+      tone='primary'
+    />
+  );
+}
+
+export function MissedRateStat() {
+  const { outcomes, recordStatus } = useLive();
+  const { missed } = outcomes;
+  const missedPct = missedPctOf(outcomes);
+  return (
+    <Stat
+      status={recordStatus}
+      metric='missedPct'
+      value={`${missedPct.toFixed(1)}%`}
+      caption={`${missed} missed`}
+      tone={missedPct >= 10 ? 'error' : missedPct >= 5 ? 'warning' : 'success'}
     />
   );
 }
@@ -169,59 +248,107 @@ export function ActivityChart() {
 
 // ── Queues and agents ────────────────────────────────────────────────────────
 
+/** A figure in a table cell, coloured by tone; neutral reads as plain text. */
+function Toned({ tone, children }: { tone: Tone; children: ReactNode }) {
+  const { ui } = useFlowContext();
+  const Typography = ui?.Typography;
+  if (!Typography) return null;
+  return (
+    <Typography
+      component='span'
+      variant='body2'
+      fontWeight={tone === 'neutral' ? undefined : 600}
+      color={tone === 'neutral' ? 'text.primary' : `${tone}.main`}
+      sx={{ fontVariantNumeric: 'tabular-nums' }}
+    >
+      {children}
+    </Typography>
+  );
+}
+
 export function QueuesCard() {
   const { ui } = useFlowContext();
-  const { queues, queueStatus } = useLive();
+  const { queues, queueStatus, now } = useLive();
   const pick = useContext(QueuePickContext);
-  const { Table, TableHead, TableBody, TableRow, TableCell, Chip } = ui ?? {};
-  if (!Table || !TableHead || !TableBody || !TableRow || !TableCell || !Chip)
+  const { Table, TableHead, TableBody, TableRow, TableCell, Typography } =
+    ui ?? {};
+  if (
+    !Table ||
+    !TableHead ||
+    !TableBody ||
+    !TableRow ||
+    !TableCell ||
+    !Typography
+  )
     return null;
+  // Busiest first, the way a supervisor scans it.
+  const rows = [...queues].sort(
+    (a, b) =>
+      b.waiting - a.waiting ||
+      waitOf(b, now) - waitOf(a, now) ||
+      a.queue.localeCompare(b.queue),
+  );
   return (
     <CardBody status={queueStatus} call='queues.onDomainQueues({ stats })'>
-      {queues.length === 0 ? (
+      {rows.length === 0 ? (
         <Empty icon='mdi:account-group' title='No queue activity yet' />
       ) : (
         <Table size='small'>
           <TableHead>
             <TableRow>
               <TableCell>Queue</TableCell>
-              <TableCell>Waiting</TableCell>
-              <TableCell align='right'>Longest</TableCell>
-              <TableCell align='right'>Agents free</TableCell>
-              <TableCell align='right'>On calls</TableCell>
+              <TableCell align='right'>Waiting</TableCell>
+              <TableCell align='right'>Longest wait</TableCell>
+              <TableCell align='right'>Active</TableCell>
+              <TableCell align='right'>Agents free / in</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {queues.map((q) => (
-              <TableRow
-                key={q.queue}
-                hover
-                sx={{ cursor: 'pointer' }}
-                onClick={() => pick(q.queue)}
-              >
-                <TableCell>{q.queue}</TableCell>
-                <TableCell>
-                  <Chip
-                    size='small'
-                    label={q.waiting}
-                    color={chipColor(
-                      q.waiting === 0
-                        ? 'success'
-                        : q.agentsAvailable === 0
-                          ? 'error'
-                          : 'warning',
-                    )}
-                  />
-                </TableCell>
-                <TableCell align='right'>
-                  {fmtSeconds(q.longestWaitSec)}
-                </TableCell>
-                <TableCell align='right'>
-                  {q.agentsAvailable} / {q.agentsLoggedIn}
-                </TableCell>
-                <TableCell align='right'>{q.activeCalls}</TableCell>
-              </TableRow>
-            ))}
+            {rows.map((q) => {
+              const wait = waitOf(q, now);
+              return (
+                <TableRow
+                  key={q.queue}
+                  hover
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => pick(q.queue)}
+                >
+                  <TableCell>
+                    <Typography variant='body2' fontWeight={600}>
+                      {q.queue}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned
+                      tone={
+                        q.waiting === 0
+                          ? 'neutral'
+                          : q.agentsAvailable === 0
+                            ? 'error'
+                            : 'warning'
+                      }
+                    >
+                      {q.waiting}
+                    </Toned>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned tone={wait ? waitTone(wait) : 'neutral'}>
+                      {wait ? fmtSeconds(wait) : '—'}
+                    </Toned>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned tone='neutral'>{q.activeCalls}</Toned>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned
+                      tone={q.agentsAvailable === 0 ? 'warning' : 'neutral'}
+                    >
+                      {q.agentsAvailable} / {q.agentsLoggedIn}
+                    </Toned>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}

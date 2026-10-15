@@ -12,11 +12,14 @@ import {
   ActivityChart,
   AgentsCard,
   AgentsFreeStat,
+  AnsweredStat,
   AvailableStat,
   CallRecordsCard,
   CallsCard,
   CallsStat,
   DispositionedStat,
+  LongestWaitStat,
+  MissedRateStat,
   NotificationsCard,
   PhonesCard,
   PhonesStat,
@@ -29,9 +32,11 @@ import {
   UserChangesCard,
   WaitingStat,
 } from './cards';
+import { CRITICAL_WAIT_SEC } from './format';
 import { QueuePickContext } from './liveContext';
 import { LiveProvider } from './liveState';
 import { QueuePanel } from './QueuePanel';
+import { AgentBoardCard, LongestWaitsCard, OutcomesCard } from './wallboard';
 
 /**
  * Live Operations — a wallboard built entirely on `sdk.streams`, drawn entirely
@@ -41,8 +46,9 @@ import { QueuePanel } from './QueuePanel';
  * every card frame, exactly as on its own dashboards. Tabs (`ui.Tabs`, in the
  * header's `actions` slot) switch which cards it shows:
  *
- *   Overview  headline StatBlocks with sparklines, the trend Chart, live calls,
- *             notifications
+ *   Overview  a wallboard: six headline StatBlocks with sparklines, the queue
+ *             table, longest waits, the agent status board, call outcomes, the
+ *             trend Chart, live calls, notifications
  *   Queues    queue table (click a row → SidePanel opening `queues.onQueue`),
  *             agents
  *   People    presence Donut and list, user record changes
@@ -84,24 +90,74 @@ const leaf = (id: string, title: string, component: Component) => ({
 // Declared at module scope: the template keys cards by id, and a new component
 // identity on every render would remount every card each second.
 
+// The Overview reads like a contact-centre wallboard: six headline figures in
+// one row, then who is waiting, then who is free, then how calls are ending.
+// Two half-width cards of three leaves each, because a full-width card lays its
+// leaves out four to a row and six would wrap.
 const OVERVIEW: DashboardTemplateWidget[] = [
   {
     id: 'live-ops-now',
-    title: 'Right now',
-    size: 'full',
+    title: 'Queues',
+    size: 'half',
     height: 2,
     refreshPolicy: 'realtime',
     leaves: [
       leaf('live-ops-waiting', 'Callers waiting', WaitingStat),
-      leaf('live-ops-agents-free', 'Agents free', AgentsFreeStat),
-      leaf('live-ops-calls', 'Calls in progress', CallsStat),
-      leaf('live-ops-phones', 'Phones registered', PhonesStat),
+      leaf('live-ops-longest-wait', 'Longest wait', LongestWaitStat),
+      leaf('live-ops-agents-free', 'Agents available', AgentsFreeStat),
     ],
+  },
+  {
+    id: 'live-ops-calls-now',
+    title: 'Calls',
+    size: 'half',
+    height: 2,
+    refreshPolicy: 'realtime',
+    leaves: [
+      leaf('live-ops-calls', 'Active calls', CallsStat),
+      leaf('live-ops-answered', 'Answered', AnsweredStat),
+      leaf('live-ops-missed', 'Missed rate', MissedRateStat),
+    ],
+  },
+  {
+    id: 'live-ops-queues-now',
+    title: 'Queues right now',
+    description: 'Busiest first. Click a queue for its callers.',
+    size: 'half',
+    height: 5,
+    refreshPolicy: 'realtime',
+    component: QueuesCard,
+  },
+  {
+    id: 'live-ops-longest-waits',
+    title: 'Longest waits',
+    description: `The bar fills toward ${CRITICAL_WAIT_SEC / 60} minutes, the critical wait`,
+    size: 'half',
+    height: 5,
+    refreshPolicy: 'realtime',
+    component: LongestWaitsCard,
+  },
+  {
+    id: 'live-ops-agent-board',
+    title: 'Agent status',
+    size: 'half',
+    height: 5,
+    refreshPolicy: 'realtime',
+    component: AgentBoardCard,
+  },
+  {
+    id: 'live-ops-outcomes',
+    title: 'Outcomes',
+    description: 'cdrs.onDomain — calls ended since the app loaded',
+    size: 'half',
+    height: 5,
+    refreshPolicy: 'realtime',
+    component: OutcomesCard,
   },
   {
     id: 'live-ops-trend',
     title: 'Last 15 minutes',
-    description: 'Sampled every ten seconds while this page is open',
+    description: 'Sampled every ten seconds since the app loaded',
     size: 'full',
     height: 4,
     refreshPolicy: 'realtime',
@@ -186,6 +242,14 @@ const PEOPLE: DashboardTemplateWidget[] = [
 ];
 
 const PHONES: DashboardTemplateWidget[] = [
+  {
+    id: 'live-ops-phones-now',
+    title: 'Right now',
+    size: 'half',
+    height: 2,
+    refreshPolicy: 'realtime',
+    leaves: [leaf('live-ops-phones', 'Phones registered', PhonesStat)],
+  },
   {
     id: 'live-ops-phones-table',
     title: 'Phone registration',

@@ -42,3 +42,12 @@ export const isBlocked = (s: StreamStatus) =>
   s.state === 'refused' ||
   s.state === 'unavailable' ||
   s.state === 'unconfirmed';
+
+/** Past this many seconds a wait reads as critical, past half of it as a warning. */
+export const CRITICAL_WAIT_SEC = 120;
+
+export function waitTone(sec: number): Tone {
+  if (sec >= CRITICAL_WAIT_SEC) return 'error';
+  if (sec >= CRITICAL_WAIT_SEC / 2) return 'warning';
+  return 'success';
+}

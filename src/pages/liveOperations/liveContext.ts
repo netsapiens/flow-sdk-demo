@@ -21,9 +21,15 @@ export interface Sample {
   label: string;
   calls: number;
   waiting: number;
+  /** Seconds the oldest waiting caller has waited, across every queue. */
+  longestWait: number;
   agentsFree: number;
   registered: number;
   available: number;
+  /** Inbound calls answered since the app loaded. */
+  answered: number;
+  /** Missed share of inbound calls (answered + missed), 0–100. */
+  missedPct: number;
 }
 
 /** One delivery from `cdrs.onDomain`: the record as sent, and what changed. */
@@ -61,6 +67,8 @@ export interface LiveState {
   recordStatus: StreamStatus;
   /** Oldest first, at most HISTORY_POINTS. */
   history: Sample[];
+  /** Running totals since the app loaded, not a window of recent records. */
+  outcomes: Outcomes;
   /** A one-second clock, so durations count between frames. */
   now: number;
   /** Display name for a user, from whatever the page has seen of them. */
@@ -81,6 +89,57 @@ export function useLive(): LiveState {
 }
 
 export const agentKey = (a: AgentStatus) => `${a.queue}|${a.agent}`;
+
+/**
+ * How long a queue's oldest caller has waited, counted up to `now`. The stats
+ * event carries `longestWaitSec` as of when it was sent; between events the
+ * wait keeps growing, so count from `oldestQueuedAt` when there is one.
+ */
+export function waitOf(q: QueueStats, now: number): number {
+  if (q.waiting === 0) return 0;
+  const queued = q.oldestQueuedAt ? Date.parse(q.oldestQueuedAt) : NaN;
+  return Number.isNaN(queued)
+    ? q.longestWaitSec
+    : Math.max(q.longestWaitSec, (now - queued) / 1000);
+}
+
+/**
+ * How calls have ended since the app loaded: running totals, counted once per
+ * record when its `completed` event arrives (the first sighting of a record).
+ */
+export interface Outcomes {
+  answered: number;
+  missed: number;
+  outbound: number;
+  internal: number;
+}
+
+export const NO_OUTCOMES: Outcomes = {
+  answered: 0,
+  missed: 0,
+  outbound: 0,
+  internal: 0,
+};
+
+/** Count one finished call. Returns a new object, so snapshots stay immutable. */
+export function countOutcome(o: Outcomes, record: CallRecord): Outcomes {
+  switch (record.direction) {
+    case 'inbound':
+      return { ...o, answered: o.answered + 1 };
+    case 'missed':
+      return { ...o, missed: o.missed + 1 };
+    case 'outbound':
+      return { ...o, outbound: o.outbound + 1 };
+    case 'internal':
+      return { ...o, internal: o.internal + 1 };
+    default:
+      return o;
+  }
+}
+
+/** Missed share of inbound calls (answered + missed), 0–100. */
+export const missedPctOf = (o: Outcomes) =>
+  o.answered + o.missed ? (o.missed / (o.answered + o.missed)) * 100 : 0;
 
 /** Which queue's drill-down panel is open; set by a Queues row click. */
 export const QueuePickContext = createContext<(queue: string) => void>(
