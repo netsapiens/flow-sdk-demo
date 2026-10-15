@@ -7,8 +7,26 @@ const HEADINGS = ['Pattern', 'Type', 'Example match'];
 
 export default function PatternsPanel() {
   const { ui } = useFlowContext();
-  const { Paper, Box, Typography } = ui || {};
-  if (!Paper || !Box || !Typography) return null;
+  const {
+    Paper,
+    Typography,
+    Table,
+    TableHead,
+    TableBody,
+    TableRow,
+    TableCell,
+  } = ui || {};
+  if (
+    !Paper ||
+    !Typography ||
+    !Table ||
+    !TableHead ||
+    !TableBody ||
+    !TableRow ||
+    !TableCell
+  ) {
+    return null;
+  }
 
   return (
     <Paper rounded>
@@ -21,64 +39,32 @@ export default function PatternsPanel() {
         registration can target many pages.
       </Typography>
 
-      {/* The kit exposes no Table primitives, so the table ELEMENTS come from
-          the host `Box` via `component` — real <table> semantics, with every
-          color resolved from the live palette through `sx`. */}
+      {/* The kit has no TableContainer; a Paper with overflowX is all it did. */}
       <Paper rounded background={1} sx={{ overflowX: 'auto' }}>
-        <Box
-          component='table'
-          sx={{ width: '100%', borderCollapse: 'collapse' }}
-        >
-          <Box component='thead'>
-            <Box
-              component='tr'
-              sx={{ borderBottom: '2px solid', borderColor: 'divider' }}
-            >
+        <Table size='small'>
+          <TableHead>
+            <TableRow>
               {HEADINGS.map((heading) => (
-                <Box
-                  key={heading}
-                  component='th'
-                  sx={{ textAlign: 'left', p: 1 }}
-                >
-                  <Typography
-                    variant='caption'
-                    color='text.secondary'
-                    fontWeight={600}
-                  >
-                    {heading}
-                  </Typography>
-                </Box>
+                <TableCell key={heading}>{heading}</TableCell>
               ))}
-            </Box>
-          </Box>
-          <Box component='tbody'>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {PATTERNS.map((p) => (
-              <Box
-                key={p.pattern}
-                component='tr'
-                sx={{ borderBottom: '1px solid', borderColor: 'divider' }}
-              >
-                <Box component='td' sx={{ p: 1 }}>
-                  <Typography
-                    variant='body2'
-                    component='code'
-                    fontFamily='monospace'
-                  >
-                    {p.pattern}
-                  </Typography>
-                </Box>
-                <Box component='td' sx={{ p: 1 }}>
-                  <Typography variant='body2'>{p.kind}</Typography>
-                </Box>
-                <Box component='td' sx={{ p: 1 }}>
+              <TableRow key={p.pattern}>
+                <TableCell>
+                  <code>{p.pattern}</code>
+                </TableCell>
+                <TableCell>{p.kind}</TableCell>
+                <TableCell>
                   <Typography variant='body2' color='text.secondary'>
                     {p.matches}
                   </Typography>
-                </Box>
-              </Box>
+                </TableCell>
+              </TableRow>
             ))}
-          </Box>
-        </Box>
+          </TableBody>
+        </Table>
       </Paper>
     </Paper>
   );

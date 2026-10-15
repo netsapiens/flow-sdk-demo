@@ -21,7 +21,7 @@ export function CallerInfoWidget({
   // context.theme is injected by DynamicExtensionRenderer via useColorScheme()
   // and updated as a prop whenever the host theme changes — always correct on
   // first render, no event subscription needed.
-  const { Paper, Stack, Typography, Divider } = context.ui ?? {};
+  const { Paper, Stack, Typography, Divider, Icon } = context.ui ?? {};
 
   const [activeCalls, setActiveCalls] = useState<CallerInfo[]>([]);
 
@@ -77,7 +77,12 @@ export function CallerInfoWidget({
       <Stack spacing={1}>
         {ringingCall.company && (
           <Stack direction='row' spacing={1} alignItems='center'>
-            <span>🏢</span>
+            {Icon && (
+              <Icon
+                icon='mdi:office-building'
+                sx={{ fontSize: 18, color: 'text.secondary' }}
+              />
+            )}
             <Typography variant='subtitle2' fontWeight={600}>
               {ringingCall.company}
             </Typography>
@@ -86,7 +91,12 @@ export function CallerInfoWidget({
 
         {ringingCall.lastContact && (
           <Stack direction='row' spacing={1} alignItems='center'>
-            <span>🕒</span>
+            {Icon && (
+              <Icon
+                icon='mdi:clock-outline'
+                sx={{ fontSize: 16, color: 'text.secondary' }}
+              />
+            )}
             <Typography variant='caption' color='text.secondary'>
               Last contact: {ringingCall.lastContact}
             </Typography>
@@ -95,7 +105,12 @@ export function CallerInfoWidget({
 
         {ringingCall.callCount !== undefined && ringingCall.callCount > 0 && (
           <Stack direction='row' spacing={1} alignItems='center'>
-            <span>📞</span>
+            {Icon && (
+              <Icon
+                icon='mdi:phone'
+                sx={{ fontSize: 16, color: 'text.secondary' }}
+              />
+            )}
             <Typography variant='caption' color='text.secondary'>
               {ringingCall.callCount} previous calls
             </Typography>

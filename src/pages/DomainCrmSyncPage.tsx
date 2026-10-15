@@ -178,8 +178,7 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
   if (!PageTemplate || !Paper || !Stack || !Typography) {
     return (
       <div {...marker} style={{ padding: 24 }}>
-        <h1>CRM Sync</h1>
-        <p>Managing: {managing ?? 'no domain selected'}</p>
+        UI components not available
       </div>
     );
   }

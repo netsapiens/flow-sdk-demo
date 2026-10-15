@@ -21,8 +21,6 @@ import type { RemoteAuthError, RemoteAuthResponse } from '@netsapiens/flow-sdk';
 import { useCallback, useState } from 'react';
 import { useFlowContext } from '@netsapiens/flow-sdk';
 
-import { CodeBlock } from '../../components/CodeBlock';
-
 // Demo vendor identity. `vendorId` names which backend to authenticate against
 // and is the key the token is cached under.
 //
@@ -168,7 +166,7 @@ export default function RemoteAuthPanel() {
     setError(null);
   }, [auth]);
 
-  const { Paper, Stack, Box, Typography, Button, Chip, Alert } = ui || {};
+  const { Paper, Stack, Box, Typography, Button, Chip, Alert, Code } = ui || {};
   if (!Paper || !Stack || !Box || !Typography || !Button || !Chip || !Alert)
     return null;
 
@@ -226,8 +224,8 @@ export default function RemoteAuthPanel() {
 
         {status === 'error' && error && <Alert severity='error'>{error}</Alert>}
 
-        {status === 'connected' && token && (
-          <CodeBlock>{JSON.stringify(token, null, 2)}</CodeBlock>
+        {status === 'connected' && token && Code && (
+          <Code>{JSON.stringify(token, null, 2)}</Code>
         )}
       </Paper>
 
@@ -272,7 +270,7 @@ export default function RemoteAuthPanel() {
         <Typography variant='subtitle2' fontWeight={600}>
           In the app
         </Typography>
-        <CodeBlock>{CLIENT_SNIPPET}</CodeBlock>
+        {Code && <Code>{CLIENT_SNIPPET}</Code>}
       </Stack>
 
       {/* Backend snippet */}
@@ -280,7 +278,7 @@ export default function RemoteAuthPanel() {
         <Typography variant='subtitle2' fontWeight={600}>
           In your backend
         </Typography>
-        <CodeBlock>{BACKEND_SNIPPET}</CodeBlock>
+        {Code && <Code>{BACKEND_SNIPPET}</Code>}
       </Stack>
 
       <Typography variant='body2' color='text.secondary' sx={{ mt: 2 }}>

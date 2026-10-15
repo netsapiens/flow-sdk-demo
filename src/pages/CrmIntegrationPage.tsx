@@ -416,12 +416,14 @@ function Field({
   value: string;
   T: ComponentType<Record<string, unknown>>;
 }) {
+  const Box = useFlowContext().ui?.Box;
+  if (!Box) return null;
   return (
-    <div>
+    <Box>
       <T variant='caption' color='text.secondary'>
         {label}
       </T>
       <T variant='body2'>{value}</T>
-    </div>
+    </Box>
   );
 }
