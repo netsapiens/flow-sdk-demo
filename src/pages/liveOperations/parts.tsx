@@ -116,3 +116,65 @@ export function CardBody({
     </Stack>
   );
 }
+
+/**
+ * A panel on the Live Operations page: a rounded kit Card with a heading.
+ * The page draws its own cards (PageTemplate + Grid) rather than using the
+ * DashboardTemplate, whose cards the host keeps square by design; an app's own
+ * page cards take `rounded`. `height: 1` lets cards in one Grid row match.
+ */
+export function Panel({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: ReactNode;
+}) {
+  const { ui } = useFlowContext();
+  const { Card, CardContent, Stack, Typography } = ui ?? {};
+  if (!Card || !CardContent || !Stack || !Typography) return null;
+  return (
+    <Card rounded sx={{ height: 1 }}>
+      <CardContent>
+        <Stack spacing={1.5}>
+          <Stack spacing={0.25}>
+            <Typography variant='subtitle1' fontWeight={600}>
+              {title}
+            </Typography>
+            {description ? (
+              <Typography variant='caption' color='text.secondary'>
+                {description}
+              </Typography>
+            ) : null}
+          </Stack>
+          {children}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** A headline figure on its own rounded card: a title above a StatBlock. */
+export function Tile({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  const { ui } = useFlowContext();
+  const { Card, CardContent, Typography } = ui ?? {};
+  if (!Card || !CardContent || !Typography) return null;
+  return (
+    <Card rounded sx={{ height: 1 }}>
+      <CardContent>
+        <Typography variant='subtitle2' fontWeight={600} gutterBottom>
+          {title}
+        </Typography>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}

@@ -1,7 +1,8 @@
 /**
  * The Overview's wallboard cards: who is waiting longest, what every agent is
- * doing, and how inbound calls are ending. Kit components only — Box, Paper,
- * Stack, Typography, Avatar, Chip, Donut — with every colour a palette path,
+ * doing, and how inbound calls are ending. Kit components only — List, Grid,
+ * Paper, Stack, Typography, Avatar, Chip, Icon, Donut — with every colour a
+ * palette path,
  * so the board follows the host's dark/light toggle. Data comes from
  * LiveProvider; nothing here subscribes.
  */
@@ -28,17 +29,20 @@ const paletteOf = (tone: Tone) =>
 // ── Longest waits ────────────────────────────────────────────────────────────
 
 /**
- * Queues with callers waiting, oldest wait first, each with a bar that fills
- * toward the critical threshold. One row per queue: individual callers come
- * from `queues.onQueue`, which the page opens only for the queue a supervisor
- * drills into (click a row).
+ * Queues with callers waiting, oldest wait first. One row per queue: individual
+ * callers come from `queues.onQueue`, which the page opens only for the queue a
+ * supervisor drills into (click a row). The kit has no progress bar, so urgency
+ * is the wait's colour plus a Critical chip, as on the headline tiles.
  */
 export function LongestWaitsCard() {
   const { ui } = useFlowContext();
   const { queues, queueStatus, now } = useLive();
   const pick = useContext(QueuePickContext);
-  const { Box, Stack, Typography } = ui ?? {};
-  if (!Box || !Stack || !Typography) return null;
+  const { Avatar, Chip, List, ListItem, ListItemText, Stack, Typography } =
+    ui ?? {};
+  if (!Avatar || !Chip || !List || !ListItem || !ListItemText || !Stack)
+    return null;
+  if (!Typography) return null;
 
   const waiting = queues
     .filter((q) => q.waiting > 0)
@@ -54,68 +58,52 @@ export function LongestWaitsCard() {
           description='Queues with callers on hold appear here, longest wait first.'
         />
       ) : (
-        <Stack divider={<Box sx={{ borderTop: 1, borderColor: 'divider' }} />}>
+        <List disablePadding>
           {waiting.map(({ q, wait }, i) => {
             const tone = waitTone(wait);
             return (
-              <Box
+              <ListItem
                 key={q.queue}
+                divider={i < waiting.length - 1}
+                disableGutters
                 onClick={() => pick(q.queue)}
-                sx={{
-                  py: 1.25,
-                  cursor: 'pointer',
-                  '&:hover': { bgcolor: 'action.hover' },
-                }}
+                sx={{ cursor: 'pointer' }}
+                secondaryAction={
+                  <Stack direction='row' spacing={1} alignItems='center'>
+                    {wait >= CRITICAL_WAIT_SEC ? (
+                      <Chip size='small' color='error' label='Critical' />
+                    ) : null}
+                    <Typography
+                      variant='subtitle1'
+                      fontWeight={700}
+                      color={paletteOf(tone)}
+                      sx={{ fontVariantNumeric: 'tabular-nums' }}
+                    >
+                      {fmtSeconds(wait)}
+                    </Typography>
+                  </Stack>
+                }
               >
-                <Stack direction='row' spacing={1.5} alignItems='center'>
-                  <Typography
-                    variant='body2'
-                    color='text.secondary'
-                    sx={{ width: 16, fontVariantNumeric: 'tabular-nums' }}
-                  >
-                    {i + 1}
-                  </Typography>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant='body2' fontWeight={600} noWrap>
-                      Queue {q.queue}
-                    </Typography>
-                    <Typography variant='caption' color='text.secondary'>
-                      {q.waiting} waiting · {q.agentsAvailable} of{' '}
-                      {q.agentsLoggedIn} agents free
-                    </Typography>
-                  </Box>
-                  <Typography
-                    variant='subtitle1'
-                    fontWeight={700}
-                    color={paletteOf(tone)}
-                    sx={{ fontVariantNumeric: 'tabular-nums' }}
-                  >
-                    {fmtSeconds(wait)}
-                  </Typography>
-                </Stack>
-                {/* The bar fills toward the critical wait, then stays full. */}
-                <Box
+                <Avatar
                   sx={{
-                    ml: 3.5,
-                    mt: 0.75,
-                    height: 4,
-                    borderRadius: 2,
-                    bgcolor: 'action.hover',
-                    overflow: 'hidden',
+                    width: 28,
+                    height: 28,
+                    fontSize: 13,
+                    mr: 1.5,
+                    bgcolor: 'action.selected',
+                    color: 'text.secondary',
                   }}
                 >
-                  <Box
-                    sx={{
-                      height: 1,
-                      width: `${Math.min(100, (wait / CRITICAL_WAIT_SEC) * 100)}%`,
-                      bgcolor: paletteOf(tone),
-                    }}
-                  />
-                </Box>
-              </Box>
+                  {i + 1}
+                </Avatar>
+                <ListItemText
+                  primary={`Queue ${q.queue}`}
+                  secondary={`${q.waiting} waiting · ${q.agentsAvailable} of ${q.agentsLoggedIn} agents free`}
+                />
+              </ListItem>
             );
           })}
-        </Stack>
+        </List>
       )}
     </CardBody>
   );
@@ -166,20 +154,18 @@ function foldAgents(agents: AgentStatus[]) {
 export function AgentBoardCard() {
   const { ui } = useFlowContext();
   const { agents, agentStatus, nameOf, now } = useLive();
-  const { Avatar, Box, Chip, Paper, Stack, Typography } = ui ?? {};
-  if (!Avatar || !Box || !Chip || !Paper || !Stack || !Typography) return null;
+  const { Avatar, Chip, Grid, Icon, Paper, Stack, Typography } = ui ?? {};
+  if (!Avatar || !Chip || !Grid || !Icon || !Paper || !Stack || !Typography)
+    return null;
 
+  const order = Object.keys(STATES) as AgentState[];
   const people = [...foldAgents(agents)]
     .map(([user, p]) => ({ user, name: nameOf(user), ...p }))
     .sort(
       (a, b) =>
-        Object.keys(STATES).indexOf(a.state) -
-          Object.keys(STATES).indexOf(b.state) || a.name.localeCompare(b.name),
+        order.indexOf(a.state) - order.indexOf(b.state) ||
+        a.name.localeCompare(b.name),
     );
-  const counts = (Object.keys(STATES) as AgentState[]).map((state) => ({
-    state,
-    n: people.filter((p) => p.state === state).length,
-  }));
 
   return (
     <CardBody
@@ -191,70 +177,65 @@ export function AgentBoardCard() {
       ) : (
         <Stack spacing={1.5}>
           <Stack direction='row' spacing={1} flexWrap='wrap' useFlexGap>
-            {counts.map(({ state, n }) => (
+            {order.map((state) => (
               <Chip
                 key={state}
                 size='small'
                 variant='outlined'
                 color={chipColor(STATES[state].tone)}
-                label={`${STATES[state].label} ${n}`}
+                label={`${STATES[state].label} ${people.filter((p) => p.state === state).length}`}
               />
             ))}
           </Stack>
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 1,
-              gridTemplateColumns: 'repeat(auto-fill, minmax(176px, 1fr))',
-            }}
-          >
+          <Grid container spacing={1}>
             {people.map((p) => {
               const { label, tone } = STATES[p.state];
               return (
-                <Paper key={p.user} variant='outlined' sx={{ p: 1 }}>
-                  <Stack direction='row' spacing={1} alignItems='center'>
-                    <Avatar
-                      sx={{
-                        width: 32,
-                        height: 32,
-                        fontSize: 12,
-                        bgcolor: 'transparent',
-                        color: paletteOf(tone),
-                        border: 2,
-                        borderColor: paletteOf(tone),
-                      }}
-                    >
-                      {initials(p.name)}
-                    </Avatar>
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography variant='body2' fontWeight={600} noWrap>
-                        {p.name}
-                      </Typography>
-                      <Stack direction='row' spacing={0.75} alignItems='center'>
-                        <Box
-                          sx={{
-                            width: 7,
-                            height: 7,
-                            borderRadius: '50%',
-                            bgcolor: paletteOf(tone),
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Typography
-                          variant='caption'
-                          color='text.secondary'
-                          noWrap
-                          sx={{ fontVariantNumeric: 'tabular-nums' }}
-                        >
-                          {label} · {fmtSeconds(since(p.changedAt, now))}
+                <Grid key={p.user} size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
+                  <Paper rounded variant='outlined' sx={{ p: 1 }}>
+                    <Stack direction='row' spacing={1} alignItems='center'>
+                      <Avatar
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          fontSize: 12,
+                          bgcolor: 'transparent',
+                          color: paletteOf(tone),
+                          border: 2,
+                          borderColor: paletteOf(tone),
+                        }}
+                      >
+                        {initials(p.name)}
+                      </Avatar>
+                      <Stack sx={{ minWidth: 0 }}>
+                        <Typography variant='body2' fontWeight={600} noWrap>
+                          {p.name}
                         </Typography>
+                        <Stack
+                          direction='row'
+                          spacing={0.5}
+                          alignItems='center'
+                        >
+                          <Icon
+                            icon='mdi:circle'
+                            sx={{ fontSize: 8, color: paletteOf(tone) }}
+                          />
+                          <Typography
+                            variant='caption'
+                            color='text.secondary'
+                            noWrap
+                            sx={{ fontVariantNumeric: 'tabular-nums' }}
+                          >
+                            {label} · {fmtSeconds(since(p.changedAt, now))}
+                          </Typography>
+                        </Stack>
                       </Stack>
-                    </Box>
-                  </Stack>
-                </Paper>
+                    </Stack>
+                  </Paper>
+                </Grid>
               );
             })}
-          </Box>
+          </Grid>
         </Stack>
       )}
     </CardBody>

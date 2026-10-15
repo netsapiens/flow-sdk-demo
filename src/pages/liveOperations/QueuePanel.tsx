@@ -20,8 +20,15 @@ import type {
 import { useState } from 'react';
 import { useFlowContext, useStream } from '@netsapiens/flow-sdk';
 
-import { chipColor, fmtSeconds, initials, isBlocked, since } from './format';
-import { useLive } from './liveContext';
+import {
+  chipColor,
+  fmtSeconds,
+  initials,
+  isBlocked,
+  since,
+  waitTone,
+} from './format';
+import { useLive, waitOf } from './liveContext';
 import { Empty, StreamNote } from './parts';
 
 function upsert<T>(map: Map<string, T>, key: string, value: T): Map<string, T> {
@@ -39,12 +46,26 @@ function without<T>(map: Map<string, T>, key: string): Map<string, T> {
 /** The panel body. Mounted only while the panel is open, so the stream is too. */
 function QueueDetail({ queue }: { queue: string }) {
   const { ui } = useFlowContext();
-  const { sdk, now, nameOf } = useLive();
+  const live = useLive();
+  const { sdk, now, nameOf } = live;
 
+  // Open with what the page already holds, instead of a blank panel until
+  // `onQueue` delivers: the domain-wide feeds carry this queue's stats and its
+  // agents. `onQueue` then takes over and keeps them current. Callers and calls
+  // through the queue exist only on `onQueue`, so those wait for it.
+  const known = live.queues.find((q) => q.queue === queue) ?? null;
   const [stats, setStats] = useState<QueueStats | null>(null);
   const [waiting, setWaiting] = useState(new Map<string, WaitingCaller>());
   const [calls, setCalls] = useState(new Map<string, CallActivity>());
-  const [agents, setAgents] = useState(new Map<string, AgentStatus>());
+  const [agents, setAgents] = useState(
+    () =>
+      new Map(
+        live.agents
+          .filter((a) => a.queue === queue)
+          .map((a): [string, AgentStatus] => [a.agent, a]),
+      ),
+  );
+  const current = stats ?? known;
 
   const status = useStream(
     sdk,
@@ -92,24 +113,34 @@ function QueueDetail({ queue }: { queue: string }) {
         <>
           <Stack direction='row' spacing={2}>
             <StatBlock
-              value={stats?.waiting ?? 0}
+              value={current?.waiting ?? 0}
               caption='waiting'
-              tone={(stats?.waiting ?? 0) > 0 ? 'warning' : 'success'}
+              tone={(current?.waiting ?? 0) > 0 ? 'warning' : 'success'}
             />
             <StatBlock
-              value={fmtSeconds(stats?.longestWaitSec ?? 0)}
+              value={fmtSeconds(current ? waitOf(current, now) : 0)}
               caption='longest wait'
-              tone='info'
+              tone={current ? waitTone(waitOf(current, now)) : 'success'}
             />
             <StatBlock
-              value={`${stats?.agentsAvailable ?? 0}/${stats?.agentsLoggedIn ?? 0}`}
+              value={`${current?.agentsAvailable ?? 0}/${current?.agentsLoggedIn ?? 0}`}
               caption='agents free'
               tone='success'
             />
           </Stack>
 
-          <Section title={`Callers waiting (${callers.length})`}>
-            {callers.length === 0 ? (
+          <Section
+            title={`Callers waiting (${callers.length || (current?.waiting ?? 0)})`}
+          >
+            {callers.length === 0 && (current?.waiting ?? 0) > 0 ? (
+              // The count is known from the stats feed; who they are arrives
+              // with onQueue's next delivery.
+              <Empty
+                icon='mdi:account-clock'
+                title={`${current?.waiting} waiting`}
+                description='Caller details arrive with the queue’s next update.'
+              />
+            ) : callers.length === 0 ? (
               <Empty icon='mdi:phone-hangup' title='No one is waiting' />
             ) : (
               <List dense disablePadding>
@@ -166,7 +197,7 @@ function QueueDetail({ queue }: { queue: string }) {
 
           <Section title={`Agents (${agents.size})`}>
             {agents.size === 0 ? (
-              <Empty icon='mdi:headset' title='No agent changes yet' />
+              <Empty icon='mdi:headset' title='No agents in this queue' />
             ) : (
               <List dense disablePadding>
                 {[...agents.values()].map((a) => (

@@ -1,8 +1,4 @@
-import type {
-  DashboardTemplateWidget,
-  DashboardTemplateWidgetProps,
-  RemoteAppSDK,
-} from '@netsapiens/flow-sdk';
+import type { RemoteAppSDK } from '@netsapiens/flow-sdk';
 import type { ComponentType } from 'react';
 import { useState } from 'react';
 import { useFlowContext } from '@netsapiens/flow-sdk';
@@ -35,6 +31,7 @@ import {
 import { CRITICAL_WAIT_SEC } from './format';
 import { QueuePickContext } from './liveContext';
 import { LiveProvider } from './liveState';
+import { Panel, Tile } from './parts';
 import { QueuePanel } from './QueuePanel';
 import { AgentBoardCard, LongestWaitsCard, OutcomesCard } from './wallboard';
 
@@ -42,9 +39,12 @@ import { AgentBoardCard, LongestWaitsCard, OutcomesCard } from './wallboard';
  * Live Operations — a wallboard built entirely on `sdk.streams`, drawn entirely
  * with the host's kit.
  *
- * The page is a `DashboardTemplate`: the host draws the header, the grid and
- * every card frame, exactly as on its own dashboards. Tabs (`ui.Tabs`, in the
- * header's `actions` slot) switch which cards it shows:
+ * The page is a `PageTemplate` laid out with the kit's `Grid`, every panel a
+ * rounded `Card` (see `Panel` and `Tile` in parts.tsx). It used to be a
+ * `DashboardTemplate`, but the host draws dashboard cards square by design, and
+ * this page reads as a reports wallboard with rounded cards and uneven columns
+ * (8/4), which the template's half/full sizes cannot express. Tabs (`ui.Tabs`,
+ * in the header's `actions` slot) switch which panels it shows:
  *
  *   Overview  a wallboard: six headline StatBlocks with sparklines, the queue
  *             table, longest waits, the agent status board, call outcomes, the
@@ -57,15 +57,15 @@ import { AgentBoardCard, LongestWaitsCard, OutcomesCard } from './wallboard';
  *                 as its recording, call quality and disposition land
  *
  * Every feed is opened once by `LiveProvider` (liveState.tsx), above the
- * template, so switching tabs or the host remounting a card never reopens one,
- * and the trend history keeps running on every tab.
+ * panels, so switching tabs never reopens one, and the trend history keeps
+ * running on every tab.
  *
  * What the page is there to show, beyond the data:
  *
- *   - **Status is part of the UI.** Every card shows its stream's status. A
+ *   - **Status is part of the UI.** Every panel shows its stream's status. A
  *     `refused` stream carries a message the host wrote for the user — domain
  *     calls, user records and queue caller details are for domain admins, and
- *     everyone else sees why instead of an empty card.
+ *     everyone else sees why instead of an empty panel.
  *   - **One feed per need.** Queue stats and agents are two subscriptions to
  *     the same method; the host shares the socket room between them.
  *   - **Lifetimes follow the UI.** The queue drill-down's `onQueue` exists only
@@ -80,220 +80,171 @@ interface LiveOperationsPageProps extends ZoneMarkerProps {
   sdk: RemoteAppSDK;
 }
 
-type Component = ComponentType<DashboardTemplateWidgetProps>;
-const leaf = (id: string, title: string, component: Component) => ({
+/** Grid columns out of 12, per breakpoint. */
+type Span = { xs?: number; sm?: number; md?: number; lg?: number };
+
+/** One cell of a tab: a headline tile or a panel. */
+interface Cell {
+  id: string;
+  kind: 'tile' | 'panel';
+  title: string;
+  description?: string;
+  span: Span;
+  body: ComponentType;
+}
+
+const FULL: Span = { xs: 12 };
+const HALF: Span = { xs: 12, lg: 6 };
+const WIDE: Span = { xs: 12, lg: 8 };
+const NARROW: Span = { xs: 12, lg: 4 };
+const SIX_UP: Span = { xs: 12, sm: 6, md: 4, lg: 2 };
+const THREE_UP: Span = { xs: 12, sm: 4 };
+
+const tile = (
+  id: string,
+  title: string,
+  body: ComponentType,
+  span = SIX_UP,
+): Cell => ({
   id,
+  kind: 'tile',
   title,
-  component,
+  span,
+  body,
 });
+const panel = (
+  id: string,
+  title: string,
+  body: ComponentType,
+  span: Span,
+  description?: string,
+): Cell => ({ id, kind: 'panel', title, description, span, body });
 
-// Declared at module scope: the template keys cards by id, and a new component
-// identity on every render would remount every card each second.
+// Declared at module scope so each panel keeps its component identity across
+// the page's one-second re-renders.
 
-// The Overview reads like a contact-centre wallboard: six headline figures in
-// one row, then who is waiting, then who is free, then how calls are ending.
-// Two half-width cards of three leaves each, because a full-width card lays its
-// leaves out four to a row and six would wrap.
-const OVERVIEW: DashboardTemplateWidget[] = [
-  {
-    id: 'live-ops-now',
-    title: 'Queues',
-    size: 'half',
-    height: 2,
-    refreshPolicy: 'realtime',
-    leaves: [
-      leaf('live-ops-waiting', 'Callers waiting', WaitingStat),
-      leaf('live-ops-longest-wait', 'Longest wait', LongestWaitStat),
-      leaf('live-ops-agents-free', 'Agents available', AgentsFreeStat),
-    ],
-  },
-  {
-    id: 'live-ops-calls-now',
-    title: 'Calls',
-    size: 'half',
-    height: 2,
-    refreshPolicy: 'realtime',
-    leaves: [
-      leaf('live-ops-calls', 'Active calls', CallsStat),
-      leaf('live-ops-answered', 'Answered', AnsweredStat),
-      leaf('live-ops-missed', 'Missed rate', MissedRateStat),
-    ],
-  },
-  {
-    id: 'live-ops-queues-now',
-    title: 'Queues right now',
-    description: 'Busiest first. Click a queue for its callers.',
-    size: 'half',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: QueuesCard,
-  },
-  {
-    id: 'live-ops-longest-waits',
-    title: 'Longest waits',
-    description: `The bar fills toward ${CRITICAL_WAIT_SEC / 60} minutes, the critical wait`,
-    size: 'half',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: LongestWaitsCard,
-  },
-  {
-    id: 'live-ops-agent-board',
-    title: 'Agent status',
-    size: 'half',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: AgentBoardCard,
-  },
-  {
-    id: 'live-ops-outcomes',
-    title: 'Outcomes',
-    description: 'cdrs.onDomain — calls ended since the app loaded',
-    size: 'half',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: OutcomesCard,
-  },
-  {
-    id: 'live-ops-trend',
-    title: 'Last 15 minutes',
-    description: 'Sampled every ten seconds since the app loaded',
-    size: 'full',
-    height: 4,
-    refreshPolicy: 'realtime',
-    component: ActivityChart,
-  },
-  {
-    id: 'live-ops-calls-table',
-    title: 'Live calls in the domain',
-    description: 'calls.onDomainCalls — domain admins only',
-    size: 'half',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: CallsCard,
-  },
-  {
-    id: 'live-ops-notifications',
-    title: 'Notifications',
-    description: 'notifications.onNotification — yours and the domain’s',
-    size: 'half',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: NotificationsCard,
-  },
+const OVERVIEW: Cell[] = [
+  tile('live-ops-waiting', 'Callers waiting', WaitingStat),
+  tile('live-ops-longest-wait', 'Longest wait', LongestWaitStat),
+  tile('live-ops-agents-free', 'Agents available', AgentsFreeStat),
+  tile('live-ops-calls', 'Active calls', CallsStat),
+  tile('live-ops-answered', 'Answered', AnsweredStat),
+  tile('live-ops-missed', 'Missed rate', MissedRateStat),
+  panel(
+    'live-ops-queues-now',
+    'Queues right now',
+    QueuesCard,
+    WIDE,
+    'Busiest first. Click a queue for its callers.',
+  ),
+  panel(
+    'live-ops-longest-waits',
+    'Longest waits',
+    LongestWaitsCard,
+    NARROW,
+    `Critical after ${CRITICAL_WAIT_SEC / 60} minutes`,
+  ),
+  panel('live-ops-agent-board', 'Agent status', AgentBoardCard, WIDE),
+  panel(
+    'live-ops-outcomes',
+    'Outcomes',
+    OutcomesCard,
+    NARROW,
+    'Calls ended since the app loaded',
+  ),
+  panel(
+    'live-ops-trend',
+    'Last 15 minutes',
+    ActivityChart,
+    FULL,
+    'Sampled every ten seconds since the app loaded',
+  ),
+  panel(
+    'live-ops-calls-table',
+    'Live calls in the domain',
+    CallsCard,
+    HALF,
+    'calls.onDomainCalls — domain admins only',
+  ),
+  panel(
+    'live-ops-notifications',
+    'Notifications',
+    NotificationsCard,
+    HALF,
+    'notifications.onNotification — yours and the domain’s',
+  ),
 ];
 
-const QUEUES: DashboardTemplateWidget[] = [
-  {
-    id: 'live-ops-queues',
-    title: 'Queues',
-    description: 'Click a queue for its live detail',
-    size: 'full',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: QueuesCard,
-  },
-  {
-    id: 'live-ops-agents',
-    title: 'Agents',
-    description: 'Agent state across the domain’s queues',
-    size: 'full',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: AgentsCard,
-  },
+const QUEUES: Cell[] = [
+  panel(
+    'live-ops-queues',
+    'Queues',
+    QueuesCard,
+    FULL,
+    'Click a queue for its live detail',
+  ),
+  panel(
+    'live-ops-agents',
+    'Agents',
+    AgentsCard,
+    FULL,
+    'Agent state across the domain’s queues',
+  ),
 ];
 
-const PEOPLE: DashboardTemplateWidget[] = [
-  {
-    id: 'live-ops-people-now',
-    title: 'Right now',
-    size: 'full',
-    height: 2,
-    refreshPolicy: 'realtime',
-    leaves: [leaf('live-ops-available', 'Available', AvailableStat)],
-  },
-  {
-    id: 'live-ops-presence-summary',
-    title: 'Presence',
-    description: 'Changes as they happen; there is no starting snapshot',
-    size: 'half',
-    height: 4,
-    refreshPolicy: 'realtime',
-    component: PresenceSummaryCard,
-  },
-  {
-    id: 'live-ops-user-changes',
-    title: 'User record changes',
-    description: 'subscribers.onDomain — domain admins only',
-    size: 'half',
-    height: 4,
-    refreshPolicy: 'realtime',
-    component: UserChangesCard,
-  },
-  {
-    id: 'live-ops-presence-list',
-    title: 'Who changed status',
-    size: 'full',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: PresenceListCard,
-  },
+const PEOPLE: Cell[] = [
+  tile('live-ops-available', 'Available', AvailableStat, THREE_UP),
+  panel(
+    'live-ops-presence-summary',
+    'Presence',
+    PresenceSummaryCard,
+    HALF,
+    'Changes as they happen; there is no starting snapshot',
+  ),
+  panel(
+    'live-ops-user-changes',
+    'User record changes',
+    UserChangesCard,
+    HALF,
+    'subscribers.onDomain — domain admins only',
+  ),
+  panel('live-ops-presence-list', 'Who changed status', PresenceListCard, FULL),
 ];
 
-const PHONES: DashboardTemplateWidget[] = [
-  {
-    id: 'live-ops-phones-now',
-    title: 'Right now',
-    size: 'half',
-    height: 2,
-    refreshPolicy: 'realtime',
-    leaves: [leaf('live-ops-phones', 'Phones registered', PhonesStat)],
-  },
-  {
-    id: 'live-ops-phones-table',
-    title: 'Phone registration',
-    description:
-      'devices.onDomain — admins see the domain, others their own phones',
-    size: 'full',
-    height: 6,
-    refreshPolicy: 'realtime',
-    component: PhonesCard,
-  },
+const PHONES: Cell[] = [
+  tile('live-ops-phones', 'Phones registered', PhonesStat, THREE_UP),
+  panel(
+    'live-ops-phones-table',
+    'Phone registration',
+    PhonesCard,
+    FULL,
+    'devices.onDomain — admins see the domain, others their own phones',
+  ),
 ];
 
-const RECORDS: DashboardTemplateWidget[] = [
-  {
-    id: 'live-ops-records-now',
-    title: 'Since this page opened',
-    size: 'full',
-    height: 2,
-    refreshPolicy: 'realtime',
-    leaves: [
-      leaf('live-ops-records', 'Calls ended', RecordsStat),
-      leaf('live-ops-record-updates', 'Record updates', RecordUpdatesStat),
-      leaf('live-ops-dispositioned', 'Dispositioned', DispositionedStat),
-    ],
-  },
-  {
-    id: 'live-ops-records-table',
-    title: 'Finished calls',
-    description:
-      'cdrs.onDomain — domain admins only. Each row is the latest version of its record.',
-    size: 'full',
-    height: 6,
-    refreshPolicy: 'realtime',
-    component: CallRecordsCard,
-  },
-  {
-    id: 'live-ops-record-deliveries',
-    title: 'Deliveries',
-    description: 'Every completed and updated event, newest first',
-    size: 'full',
-    height: 5,
-    refreshPolicy: 'realtime',
-    component: RecordDeliveriesCard,
-  },
+const RECORDS: Cell[] = [
+  tile('live-ops-records', 'Calls ended', RecordsStat, THREE_UP),
+  tile(
+    'live-ops-record-updates',
+    'Record updates',
+    RecordUpdatesStat,
+    THREE_UP,
+  ),
+  tile('live-ops-dispositioned', 'Dispositioned', DispositionedStat, THREE_UP),
+  panel(
+    'live-ops-records-table',
+    'Finished calls',
+    CallRecordsCard,
+    FULL,
+    'cdrs.onDomain — domain admins only. Each row is the latest version of its record.',
+  ),
+  panel(
+    'live-ops-record-deliveries',
+    'Deliveries',
+    RecordDeliveriesCard,
+    FULL,
+    'Every completed and updated event, newest first',
+  ),
 ];
 
 const TABS = [
@@ -301,31 +252,31 @@ const TABS = [
     value: 'overview',
     label: 'Overview',
     icon: 'mdi:view-dashboard',
-    widgets: OVERVIEW,
+    cells: OVERVIEW,
   },
   {
     value: 'queues',
     label: 'Queues',
     icon: 'mdi:account-group',
-    widgets: QUEUES,
+    cells: QUEUES,
   },
   {
     value: 'people',
     label: 'People',
     icon: 'mdi:account-multiple',
-    widgets: PEOPLE,
+    cells: PEOPLE,
   },
   {
     value: 'phones',
     label: 'Phones',
     icon: 'mdi:phone-classic',
-    widgets: PHONES,
+    cells: PHONES,
   },
   {
     value: 'records',
     label: 'Call records',
     icon: 'mdi:phone-log',
-    widgets: RECORDS,
+    cells: RECORDS,
   },
 ];
 
@@ -337,14 +288,14 @@ export default function LiveOperationsPage({
   const [tab, setTab] = useState<string>('overview');
   const [queue, setQueue] = useState<string | null>(null);
 
-  const DashboardTemplate = ui?.templates?.DashboardTemplate;
-  const { Box, Tabs } = ui ?? {};
+  const PageTemplate = ui?.templates?.PageTemplate;
+  const { Box, Grid, Tabs } = ui ?? {};
 
   // Carve-out: without the kit there is no page to draw.
-  if (!DashboardTemplate || !Box || !Tabs) {
+  if (!PageTemplate || !Box || !Grid || !Tabs) {
     return (
       <div {...marker} style={{ padding: 24 }}>
-        Dashboard template not available
+        Page template not available
       </div>
     );
   }
@@ -356,7 +307,7 @@ export default function LiveOperationsPage({
     <Box {...marker}>
       <LiveProvider sdk={sdk}>
         <QueuePickContext.Provider value={setQueue}>
-          <DashboardTemplate
+          <PageTemplate
             title='Live Operations'
             subtitle='Queues, agents, calls, call records, people and phones — pushed by sdk.streams, no polling.'
             actions={
@@ -371,8 +322,25 @@ export default function LiveOperationsPage({
                 onChange={(v) => setTab(String(v))}
               />
             }
-            widgets={current.widgets}
-          />
+          >
+            <Grid container spacing={2}>
+              {current.cells.map(
+                ({ id, kind, title, description, span, body: Body }) => (
+                  <Grid key={id} size={span}>
+                    {kind === 'tile' ? (
+                      <Tile title={title}>
+                        <Body />
+                      </Tile>
+                    ) : (
+                      <Panel title={title} description={description}>
+                        <Body />
+                      </Panel>
+                    )}
+                  </Grid>
+                ),
+              )}
+            </Grid>
+          </PageTemplate>
           <QueuePanel queue={queue} onClose={() => setQueue(null)} />
         </QueuePickContext.Provider>
       </LiveProvider>

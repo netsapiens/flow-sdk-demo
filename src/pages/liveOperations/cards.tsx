@@ -7,7 +7,6 @@ import type {
   ActivityRow,
   CallActivity,
   CallRecord,
-  DashboardTemplateWidgetProps,
   FlowNotification,
   StreamStatus,
 } from '@netsapiens/flow-sdk';
@@ -712,7 +711,7 @@ export function CallRecordsCard() {
  * call ends (`completed`), then the recording, call quality, summary and
  * disposition land one by one (`updated`).
  */
-export function RecordDeliveriesCard({ widget }: DashboardTemplateWidgetProps) {
+export function RecordDeliveriesCard() {
   const { ui } = useFlowContext();
   const { recordDeliveries, recordStatus } = useLive();
   const ActivityList = ui?.ActivityList;
@@ -745,7 +744,7 @@ export function RecordDeliveriesCard({ widget }: DashboardTemplateWidgetProps) {
           description='End a call, then save a disposition on it, to see both deliveries.'
         />
       ) : (
-        <ActivityList rows={rows} width={widget.pixel.width} />
+        <ActivityList rows={rows} />
       )}
     </CardBody>
   );
@@ -847,7 +846,7 @@ function timeOf(iso: string): string {
       });
 }
 
-export function NotificationsCard({ widget }: DashboardTemplateWidgetProps) {
+export function NotificationsCard() {
   const { ui } = useFlowContext();
   const { notifications, notificationStatus } = useLive();
   const ActivityList = ui?.ActivityList;
@@ -867,13 +866,13 @@ export function NotificationsCard({ widget }: DashboardTemplateWidgetProps) {
       {rows.length === 0 ? (
         <Empty icon='mdi:bell-outline' title='No notifications yet' />
       ) : (
-        <ActivityList rows={rows} width={widget.pixel.width} />
+        <ActivityList rows={rows} />
       )}
     </CardBody>
   );
 }
 
-export function UserChangesCard({ widget }: DashboardTemplateWidgetProps) {
+export function UserChangesCard() {
   const { ui } = useFlowContext();
   const { userChanges, userStatus } = useLive();
   const ActivityList = ui?.ActivityList;
@@ -897,7 +896,7 @@ export function UserChangesCard({ widget }: DashboardTemplateWidgetProps) {
           description='Do-not-disturb, status messages and voicemail flags show up here.'
         />
       ) : (
-        <ActivityList rows={rows} width={widget.pixel.width} />
+        <ActivityList rows={rows} />
       )}
     </CardBody>
   );
