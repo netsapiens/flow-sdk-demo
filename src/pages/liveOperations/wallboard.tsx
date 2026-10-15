@@ -111,6 +111,12 @@ export function LongestWaitsCard() {
 
 // ── Agent status board ───────────────────────────────────────────────────────
 
+/**
+ * Tiles drawn at most. On-call and available people sort first, so the cap
+ * hides the least urgent; a domain with thousands of agents stays readable.
+ */
+const BOARD_LIMIT = 48;
+
 const STATES: Record<AgentState, { label: string; tone: Tone }> = {
   oncall: { label: 'On a call', tone: 'info' },
   available: { label: 'Available', tone: 'success' },
@@ -120,7 +126,7 @@ const STATES: Record<AgentState, { label: string; tone: Tone }> = {
 
 export function AgentBoardCard() {
   const { ui } = useFlowContext();
-  const { agents, agentStatus, nameOf, now } = useLive();
+  const { agents, agentStatus, nameOf, now, bigDomain } = useLive();
   const { Avatar, Chip, Grid, Icon, Paper, Stack, Typography } = ui ?? {};
   if (!Avatar || !Chip || !Grid || !Icon || !Paper || !Stack || !Typography)
     return null;
@@ -154,8 +160,14 @@ export function AgentBoardCard() {
               />
             ))}
           </Stack>
+          {bigDomain ? (
+            <Typography variant='caption' color='text.secondary'>
+              This domain has too many agents to load up front. Agents appear
+              here as their state changes.
+            </Typography>
+          ) : null}
           <Grid container spacing={1}>
-            {people.map((p) => {
+            {people.slice(0, BOARD_LIMIT).map((p) => {
               const { label, tone } = STATES[p.state];
               return (
                 <Grid key={p.user} size={{ xs: 12, sm: 6, md: 4, xl: 3 }}>
@@ -205,6 +217,12 @@ export function AgentBoardCard() {
               );
             })}
           </Grid>
+          {people.length > BOARD_LIMIT ? (
+            <Typography variant='caption' color='text.secondary'>
+              Showing {BOARD_LIMIT} of {people.length}: on a call and available
+              first.
+            </Typography>
+          ) : null}
         </Stack>
       )}
     </CardBody>

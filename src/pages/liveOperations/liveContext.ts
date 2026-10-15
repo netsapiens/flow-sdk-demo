@@ -23,8 +23,12 @@ export interface Sample {
   waiting: number;
   /** Seconds the oldest waiting caller has waited, across every queue. */
   longestWait: number;
-  /** People free to take a call (see agentCounts), not a per-queue sum. */
-  agentsFree: number;
+  /**
+   * People free to take a call (see agentTotalsOf), not a per-queue sum. Null
+   * when not known yet (a big domain before its first stats event): drawn as a
+   * gap, not as zero.
+   */
+  agentsFree: number | null;
   registered: number;
   available: number;
   /** Inbound calls answered since the app loaded. */
@@ -76,6 +80,13 @@ export interface LiveState {
   nameOf: (user: string) => string;
   /** A queue's description from the API, or "Queue <number>". */
   queueName: (queue: string) => string;
+  /**
+   * Agents free and in queues, as people. Null when not known yet: a big
+   * domain before its first queue stats event (see agentTotalsOf).
+   */
+  agentTotals: { free: number; total: number } | null;
+  /** The domain was too big to read every agent and phone up front. */
+  bigDomain: boolean;
 }
 
 /** Trend sampling: every 10 s, 15 minutes kept. */
@@ -128,6 +139,24 @@ export function foldAgents(agents: AgentStatus[]) {
     });
   }
   return people;
+}
+
+/**
+ * The agent counts the page shows. The platform's own domain totals from the
+ * latest streamed stats come first: they count each person once across the
+ * whole domain and do not depend on the agents feed being complete. Before
+ * any stats arrive, count the agents the page holds, unless the domain was
+ * too big to read them up front, in which case that count would be a few
+ * people out of thousands: say nothing yet instead.
+ */
+export function agentTotalsOf(
+  totals: QueueStats['domainTotals'] | null,
+  agents: AgentStatus[],
+  big: boolean,
+): { free: number; total: number } | null {
+  if (totals)
+    return { free: totals.agentsAvailable, total: totals.agentsLoggedIn };
+  return big ? null : agentCounts(agents);
 }
 
 /** People free to take a call, and people in any queue at all. */

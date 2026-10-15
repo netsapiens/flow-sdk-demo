@@ -54,7 +54,21 @@ interface DeviceRow {
   'device-sip-registration-user-agent'?: string;
 }
 
+/**
+ * Past this many agents in any one queue, the domain is "big": the agents and
+ * phones are not read up front (see loadSeed).
+ */
+export const BIG_DOMAIN_AGENTS = 150;
+
+/**
+ * Past this many queue memberships in total (agents summed over queues: the
+ * number of rows `/agents` would return), the domain is "big" too.
+ */
+export const BIG_DOMAIN_MEMBERSHIPS = 1000;
+
 export interface LiveSeed {
+  /** True when the agents and phones were too many to read up front. */
+  big: boolean;
   queues: QueueStats[];
   agents: AgentStatus[];
   /** Phones and their registration, which `devices.onDomain` sends only on change. */
@@ -129,24 +143,46 @@ export async function loadSeed(
   api: FlowApiClient,
   domain: string,
 ): Promise<LiveSeed> {
-  const [queueRows, agentRows, deviceRows] = await Promise.all([
-    api
-      .get<CallQueueRow[]>(`/domains/${domain}/callqueues`)
-      .catch(() => [] as CallQueueRow[]),
-    api
-      .get<AgentRow[]>(`/domains/${domain}/agents`)
-      .catch(() => [] as AgentRow[]),
-    api
-      .get<DeviceRow[]>(`/domains/${domain}/devices`)
-      .catch(() => [] as DeviceRow[]),
-  ]);
+  const queueRows = await api
+    .get<CallQueueRow[]>(`/domains/${domain}/callqueues`)
+    .catch(() => [] as CallQueueRow[]);
+  // A domain this size makes the per-agent and per-phone reads too heavy to
+  // take on every page open (one agent row per queue membership: thousands),
+  // and the page cannot show that many people anyway. Skip them; agents and
+  // phones then appear as the feeds report them, and the agent counts come
+  // from the platform's own domain totals on the next stats event.
+  // Either limit makes it big: one queue past BIG_DOMAIN_AGENTS, or the
+  // memberships across all queues (one /agents row each) past
+  // BIG_DOMAIN_MEMBERSHIPS, so many mid-sized queues count too.
+  const rows = queueRows ?? [];
+  const memberships = rows.reduce(
+    (n, r) => n + num(r?.['callqueue-count-agents-total']),
+    0,
+  );
+  const big =
+    memberships > BIG_DOMAIN_MEMBERSHIPS ||
+    rows.some(
+      (r) => num(r?.['callqueue-count-agents-total']) > BIG_DOMAIN_AGENTS,
+    );
+  const [agentRows, deviceRows] = big
+    ? [[] as AgentRow[], [] as DeviceRow[]]
+    : await Promise.all([
+        api
+          .get<AgentRow[]>(`/domains/${domain}/agents`)
+          .catch(() => [] as AgentRow[]),
+        api
+          .get<DeviceRow[]>(`/domains/${domain}/devices`)
+          .catch(() => [] as DeviceRow[]),
+      ]);
   const queues = (queueRows ?? []).filter((r) => r?.callqueue);
   const agents = (agentRows ?? []).filter(
     (r) => r?.callqueue && r['callqueue-agent-id'],
   );
   // The platform's stats frames carry domain-wide totals, with agents counted
   // once per person (DISTINCT), not summed per queue. Build the same from the
-  // reads, so a seeded record means what a streamed one does.
+  // reads, so a seeded record means what a streamed one does. On a big domain
+  // the agents were not read, so the agent figures here are 0: the page never
+  // reads a seeded record's totals, only a streamed one's (liveState.tsx).
   const perQueue = queues.map(queueFromRow);
   const seededAgents = agents.map(agentFromRow);
   const people = agentCounts(seededAgents);
@@ -159,6 +195,7 @@ export async function loadSeed(
     activeCalls: perQueue.reduce((n, q) => n + q.activeCalls, 0),
   };
   return {
+    big,
     queues: perQueue.map((q) => ({ ...q, domainTotals })),
     agents: seededAgents,
     devices: (deviceRows ?? []).filter((r) => r?.device).map(deviceFromRow),

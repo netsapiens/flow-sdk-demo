@@ -19,7 +19,7 @@ import {
 } from '@netsapiens/flow-sdk';
 
 import type { LiveState } from './liveContext';
-import { agentKey, LiveContext } from './liveContext';
+import { agentKey, agentTotalsOf, LiveContext } from './liveContext';
 import { LIVE_FEEDS, liveHistory, RECORDS_KEPT } from './liveFeeds';
 
 /**
@@ -95,9 +95,15 @@ export function LiveProvider({
   // The starting state the streams do not send (see liveSeed.ts). LiveHistory
   // reads it once per domain and keeps it, so a page opened after that starts
   // from it synchronously: no flash of partial streamed state, no re-read.
-  const { api, user } = useFlowContext();
+  //
+  // The domain is `~` (the API resolves it to the signed-in session's domain)
+  // unless an admin is managing one. Not `flowContext.user.domain`: Flow does
+  // not reload apps after a masquerade, so that stays the original user's
+  // domain, and re-reading it after the session changed put the original
+  // domain's queues and agents back on the page.
+  const { api } = useFlowContext();
   const { managing } = useManagingDomain();
-  const domain = managing || user?.domain;
+  const domain = managing || '~';
   const cached = domain ? liveHistory.seedFor(domain) : null;
 
   const [queues, setQueues] = useState(
@@ -106,11 +112,19 @@ export function LiveProvider({
         cached?.queues.map((q): [string, QueueStats] => [q.queue, q]),
       ),
   );
+  const [domainTotals, setDomainTotals] = useState<
+    QueueStats['domainTotals'] | null
+  >(null);
   const queueStatus = useStream(
     sdk,
     (streams) =>
       streams.queues.onDomainQueues({
-        stats: (q) => setQueues((m) => upsert(m, q.queue, q)),
+        stats: (q) => {
+          setQueues((m) => upsert(m, q.queue, q));
+          // The platform's own domain-wide figures, agents counted once per
+          // person. Identical in every queue's frame; keep the latest.
+          setDomainTotals(q.domainTotals);
+        },
       }),
     [],
     { retain: LIVE_FEEDS.queueStats },
@@ -218,7 +232,10 @@ export function LiveProvider({
     { retain: LIVE_FEEDS.records },
   );
 
-  useResetOnPending(queueStatus, () => setQueues(new Map()));
+  useResetOnPending(queueStatus, () => {
+    setQueues(new Map());
+    setDomainTotals(null);
+  });
   useResetOnPending(agentStatus, () => setAgents(new Map()));
   useResetOnPending(callStatus, () => setCalls(new Map()));
   useResetOnPending(presenceStatus, () => setPresence(new Map()));
@@ -227,6 +244,7 @@ export function LiveProvider({
   useResetOnPending(userStatus, () => setUserChanges([]));
   useResetOnPending(recordStatus, () => setRecords(new Map()));
 
+  const [bigDomain, setBigDomain] = useState(() => cached?.big ?? false);
   const [queueNames, setQueueNames] = useState(
     () => cached?.queueNames ?? new Map<string, string>(),
   );
@@ -262,6 +280,7 @@ export function LiveProvider({
           seed.devices.map((d) => [d.device, d]),
         ),
       );
+      setBigDomain(seed.big);
       setQueueNames(seed.queueNames);
       setUserNames(seed.userNames);
     });
@@ -331,6 +350,8 @@ export function LiveProvider({
     now,
     nameOf,
     queueName,
+    agentTotals: agentTotalsOf(domainTotals, [...agents.values()], bigDomain),
+    bigDomain,
   };
   return <LiveContext.Provider value={state}>{children}</LiveContext.Provider>;
 }
