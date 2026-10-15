@@ -23,8 +23,12 @@ export interface Sample {
   waiting: number;
   /** Seconds the oldest waiting caller has waited, across every queue. */
   longestWait: number;
-  /** People free to take a call (see agentCounts), not a per-queue sum. */
-  agentsFree: number;
+  /**
+   * People free to take a call (see agentTotalsOf), not a per-queue sum. Null
+   * when not known yet (a big domain before its first stats event): drawn as a
+   * gap, not as zero.
+   */
+  agentsFree: number | null;
   registered: number;
   available: number;
   /** Inbound calls answered since the app loaded. */

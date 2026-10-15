@@ -41,7 +41,8 @@ function deltaOf(history: Sample[], key: keyof Omit<Sample, 'label'>) {
   if (history.length < 2) return undefined;
   const latest = history[history.length - 1][key];
   const before = history[Math.max(0, history.length - 31)][key];
-  if (!before) return undefined;
+  // An unknown value (null) has no change to report.
+  if (latest === null || before === null || !before) return undefined;
   return { pct: ((latest - before) / before) * 100, label: 'vs 5 min ago' };
 }
 
@@ -72,7 +73,10 @@ function Stat({
       value={value}
       caption={caption}
       tone={tone}
-      spark={history.slice(-18).map((s) => s[metric])}
+      spark={history
+        .slice(-18)
+        .map((s) => s[metric])
+        .filter((v): v is number => v !== null)}
       delta={deltaOf(history, metric)}
     />
   );

@@ -304,7 +304,7 @@ class LiveHistory {
           this.domainTotals,
           [...this.agents.values()],
           this.seedCache?.seed.big ?? false,
-        )?.free ?? 0,
+        )?.free ?? null,
       registered: count(this.registered),
       available: count(this.available),
       answered: outcomes.answered,

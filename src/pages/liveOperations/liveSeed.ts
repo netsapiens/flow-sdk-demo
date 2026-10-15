@@ -60,6 +60,12 @@ interface DeviceRow {
  */
 export const BIG_DOMAIN_AGENTS = 150;
 
+/**
+ * Past this many queue memberships in total (agents summed over queues: the
+ * number of rows `/agents` would return), the domain is "big" too.
+ */
+export const BIG_DOMAIN_MEMBERSHIPS = 1000;
+
 export interface LiveSeed {
   /** True when the agents and phones were too many to read up front. */
   big: boolean;
@@ -145,9 +151,19 @@ export async function loadSeed(
   // and the page cannot show that many people anyway. Skip them; agents and
   // phones then appear as the feeds report them, and the agent counts come
   // from the platform's own domain totals on the next stats event.
-  const big = (queueRows ?? []).some(
-    (r) => num(r?.['callqueue-count-agents-total']) > BIG_DOMAIN_AGENTS,
+  // Either limit makes it big: one queue past BIG_DOMAIN_AGENTS, or the
+  // memberships across all queues (one /agents row each) past
+  // BIG_DOMAIN_MEMBERSHIPS, so many mid-sized queues count too.
+  const rows = queueRows ?? [];
+  const memberships = rows.reduce(
+    (n, r) => n + num(r?.['callqueue-count-agents-total']),
+    0,
   );
+  const big =
+    memberships > BIG_DOMAIN_MEMBERSHIPS ||
+    rows.some(
+      (r) => num(r?.['callqueue-count-agents-total']) > BIG_DOMAIN_AGENTS,
+    );
   const [agentRows, deviceRows] = big
     ? [[] as AgentRow[], [] as DeviceRow[]]
     : await Promise.all([
