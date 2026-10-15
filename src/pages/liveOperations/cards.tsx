@@ -26,7 +26,6 @@ import {
   waitTone,
 } from './format';
 import {
-  agentCounts,
   agentKey,
   missedPctOf,
   QueuePickContext,
@@ -80,9 +79,9 @@ function Stat({
 }
 
 export function WaitingStat() {
-  const { queues, queueStatus, agents } = useLive();
+  const { queues, queueStatus, agentTotals } = useLive();
   const waiting = queues.reduce((n, q) => n + q.waiting, 0);
-  const { free } = agentCounts(agents);
+  const free = agentTotals?.free ?? 0;
   return (
     <Stat
       status={queueStatus}
@@ -91,9 +90,11 @@ export function WaitingStat() {
       caption={
         waiting === 0
           ? 'no one waiting'
-          : free === 0
-            ? 'no agent free'
-            : `${free} agent${free === 1 ? '' : 's'} free`
+          : !agentTotals
+            ? `${waiting} waiting`
+            : free === 0
+              ? 'no agent free'
+              : `${free} agent${free === 1 ? '' : 's'} free`
       }
       tone={waiting === 0 ? 'success' : free === 0 ? 'error' : 'warning'}
     />
@@ -126,16 +127,17 @@ export function LongestWaitStat() {
 }
 
 export function AgentsFreeStat() {
-  const { agents, agentStatus } = useLive();
-  // People, not a sum of each queue's count: an agent in three queues is one.
-  const { free, total } = agentCounts(agents);
+  const { agentTotals, queueStatus } = useLive();
+  // People, from the platform's domain totals (see agentTotalsOf).
   return (
     <Stat
-      status={agentStatus}
+      status={queueStatus}
       metric='agentsFree'
-      value={`${free} / ${total}`}
-      caption='free of agents in queues'
-      tone={free > 0 ? 'success' : 'warning'}
+      value={agentTotals ? `${agentTotals.free} / ${agentTotals.total}` : '—'}
+      caption={
+        agentTotals ? 'free of agents in queues' : 'with the next queue update'
+      }
+      tone={!agentTotals || agentTotals.free > 0 ? 'success' : 'warning'}
     />
   );
 }

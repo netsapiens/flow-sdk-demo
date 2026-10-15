@@ -11,8 +11,8 @@ import type {
 import type { Outcomes, RecordDelivery, Sample } from './liveContext';
 import type { LiveSeed } from './liveSeed';
 import {
-  agentCounts,
   agentKey,
+  agentTotalsOf,
   countOutcome,
   HISTORY_POINTS,
   missedPctOf,
@@ -95,6 +95,8 @@ class LiveHistory {
   // Just enough state to total up a sample.
   private queues = new Map<string, QueueStats>();
   private agents = new Map<string, AgentStatus>();
+  /** The latest streamed domain totals (see agentTotalsOf). */
+  private domainTotals: QueueStats['domainTotals'] | null = null;
   private seedCache: { domain: string; seed: LiveSeed } | null = null;
   private seedLoading: { domain: string; promise: Promise<LiveSeed> } | null =
     null;
@@ -144,7 +146,10 @@ class LiveHistory {
     // an event not retained here would never be called.
     retain(LIVE_FEEDS.queueStats, (s) =>
       s.queues.onDomainQueues({
-        stats: (q) => this.queues.set(q.queue, q),
+        stats: (q) => {
+          this.queues.set(q.queue, q);
+          this.domainTotals = q.domainTotals;
+        },
       }),
     );
     retain(LIVE_FEEDS.agents, (s) =>
@@ -259,7 +264,10 @@ class LiveHistory {
     this.seedCache = null;
     this.seedLoading = null;
     this.trimmedAtSeed = false;
-    if (key === LIVE_FEEDS.queueStats) this.queues.clear();
+    if (key === LIVE_FEEDS.queueStats) {
+      this.queues.clear();
+      this.domainTotals = null;
+    }
     if (key === LIVE_FEEDS.agents) this.agents.clear();
     if (key === LIVE_FEEDS.calls) this.calls.clear();
     if (key === LIVE_FEEDS.devices) this.registered.clear();
@@ -291,7 +299,12 @@ class LiveHistory {
       calls: this.calls.size,
       waiting: queues.reduce((n, q) => n + q.waiting, 0),
       longestWait: queues.reduce((n, q) => Math.max(n, waitOf(q, now)), 0),
-      agentsFree: agentCounts([...this.agents.values()]).free,
+      agentsFree:
+        agentTotalsOf(
+          this.domainTotals,
+          [...this.agents.values()],
+          this.seedCache?.seed.big ?? false,
+        )?.free ?? 0,
       registered: count(this.registered),
       available: count(this.available),
       answered: outcomes.answered,
