@@ -1,6 +1,6 @@
 ---
 name: create-flow-app
-description: Scaffold a NetSapiens Flow remote app that passes platform bundle verification — chunk SRI, source maps, correct webpack `shared` config — with the current SDK shape: API client, scope declarations, capability-gated data streams, scoped event bus, and theme-correct UI. Use when asked to "create a Flow app", "scaffold a Flow extension" (or the older "Horizon app" / "Horizon extension"), or to start a new partner integration.
+description: Scaffold a NetSapiens Flow remote app that passes platform bundle verification — chunk SRI, source maps, correct webpack `shared` config — with the current SDK shape: API client, scope declarations, live data through `sdk.streams`, and theme-correct UI. Use when asked to "create a Flow app", "scaffold a Flow extension" (or the older "Horizon app" / "Horizon extension"), or to start a new partner integration.
 ---
 
 # create-flow-app
@@ -51,8 +51,10 @@ Scaffolds a new remote app for NetSapiens Flow.
 
 **Reference material in this repository.** The app in `src/` is a working extension with every
 requirement below already applied — read it when a template here is ambiguous.
-[`MIGRATION-0.1.x-TO-0.2.x.md`](../../../MIGRATION-0.1.x-TO-0.2.x.md) is the full contract and
-explains _why_ each requirement exists; `examples/vendor-backend` is a correct remote-auth
+[`MIGRATION-0.1.x-TO-0.2.x.md`](../../../MIGRATION-0.1.x-TO-0.2.x.md) explains _why_ each
+build and verification requirement exists, and
+[`MIGRATION-0.2.x-TO-0.3.x.md`](../../../MIGRATION-0.2.x-TO-0.3.x.md) covers the 0.3.x shape
+(`sdk.streams`, no event bus); `examples/vendor-backend` is a correct remote-auth
 webhook verifier.
 
 ## Inputs to gather
@@ -75,8 +77,7 @@ If the target directory exists, ask before overwriting.
 <app-id>/
 ├── src/
 │   ├── App.tsx
-│   ├── pages/MainPage.tsx
-│   └── extensions/HeaderButton.tsx
+│   └── pages/MainPage.tsx
 ├── index.html
 ├── webpack.config.js
 ├── tsconfig.json
@@ -105,7 +106,7 @@ If the target directory exists, ask before overwriting.
   },
   "engines": { "node": ">=18" },
   "dependencies": {
-    "@netsapiens/flow-sdk": "^0.2.11",
+    "@netsapiens/flow-sdk": "^0.3.6",
     "loglevel": "^1.9.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -325,11 +326,10 @@ module.exports = (_env, argv) => {
 ### `src/App.tsx`
 
 ```tsx
-import type { FlowContext } from '@netsapiens/flow-sdk';
+import type { CallEvent, FlowContext } from '@netsapiens/flow-sdk';
 import { useEffect, useMemo } from 'react';
 import { FlowContextProvider, useRemoteApp } from '@netsapiens/flow-sdk';
 
-import HeaderButton from './extensions/HeaderButton';
 import MainPage from './pages/MainPage';
 
 // Injected by webpack's DefinePlugin from the ModuleFederationPlugin `name`
@@ -425,17 +425,23 @@ export default function App(flowContext: FlowContext) {
     // `src/extensions/ExportButton.tsx` in this repository is the declared form;
     // the other files in that directory are components, correctly.
 
-    // Host data streams are capability-gated and delivered through the SDK —
-    // never the raw event bus. See "Host events & data streams" below. Requires
-    // the `call-events:listen` capability in your registration's `permissions`.
-    // subscribeToCallEvents RETURNS its unsubscribe function — call it to tear
-    // the subscription down (here, on effect cleanup / unmount).
-    const unsubscribeCallEvents = sdk.subscribeToCallEvents(
-      ['call-started', 'call-answered', 'call-ended', 'call-missed'],
-      (event) => console.log('[<app-id>] call event', event),
-    );
+    // Live host data comes through `sdk.streams` — see "Live data & your own
+    // events" below. Calling a method IS the subscription. You declare nothing:
+    // the platform finds this call in your source when you submit a version and
+    // grants the `softphone` stream from it, so write it plainly. Each call
+    // returns a Subscription; unsubscribe on effect cleanup (sdk.cleanup() also
+    // closes everything when the app unmounts).
+    const onCall = (event: CallEvent) =>
+      console.log('[<app-id>] call event', event.type, event.remote.number);
+    const softphone = [
+      sdk.streams.softphone.onCallStarted(onCall),
+      sdk.streams.softphone.onCallAnswered(onCall),
+      sdk.streams.softphone.onCallEnded(onCall),
+      sdk.streams.softphone.onCallMissed(onCall),
+    ];
 
-    return () => unsubscribeCallEvents();
+    return () =>
+      softphone.forEach((subscription) => subscription.unsubscribe());
   }, [sdk]);
 
   return null;
@@ -515,48 +521,6 @@ export default function MainPage() {
         </Paper>
       </Stack>
     </PageTemplate>
-  );
-}
-```
-
-### `src/extensions/HeaderButton.tsx`
-
-```tsx
-import { type ExtensionComponentProps, useTheme } from '@netsapiens/flow-sdk';
-
-export default function HeaderButton({ context }: ExtensionComponentProps) {
-  // Extensions read the host UI components off `context.ui` (a prop, not a hook).
-  const { Button, Icon } = context.ui || {};
-
-  // Extensions render OUTSIDE FlowContextProvider, so `useTheme()` can't read
-  // a provider — pass `context.eventBus` (subscribe for live updates) and
-  // `context.theme` (correct value on first paint, before the first toggle).
-  const { theme } = useTheme(context.eventBus, context.theme);
-
-  const handleClick = () =>
-    console.log('[<app-id>] header button clicked', context.params);
-
-  // Graceful fallback if the host UI kit isn't available.
-  if (!Button || !Icon) {
-    return <button onClick={handleClick}><display-name></button>;
-  }
-
-  // The themed Button re-colors itself on toggle; we only use `theme` to pick a
-  // mode-appropriate glyph. Never hardcode colors here.
-  return (
-    <Button
-      variant="text"
-      sx={{ px: 1 }}
-      onClick={handleClick}
-      startIcon={
-        <Icon
-          icon={theme === 'dark' ? 'mdi:weather-night' : 'mdi:weather-sunny'}
-          sx={{ fontSize: 20 }}
-        />
-      }
-    >
-      <display-name>
-    </Button>
   );
 }
 ```
@@ -647,7 +611,7 @@ Use **Platform → UI SDK Management → Registered Apps → Add App** in the ho
 
 The app `id` is derived server-side as the kebab-case of `webpack_module` (so `<module-scope>` → `<app-id>`). `webpack_module` must be unique platform-wide — a duplicate returns **409** — and is immutable once registered.
 
-There is deliberately **no `permissions` or `capabilities` field**. The platform analyser extracts what your bundle declares (`requiredPermissions` on your extension configs) from the submitted source; the Capabilities column in Registered Apps is a read-only view of that. Capabilities are enabled or disabled **platform-wide** by an administrator, not per app.
+There is deliberately **no `permissions` or `capabilities` field**. The platform analyser reads your submitted source and derives what the app may use from it: a stream grant for each `sdk.streams` call it finds, plus the `requiredPermissions` on your configs. The Capabilities column in Registered Apps is a read-only view of that. Each grant is switched on or off **platform-wide** by an administrator in SDK Settings, not per app.
 
 Your origin must be in the operator's **approved CDN origins** allowlist or the bundle is refused before it is fetched. It is an allowlist of bare hostnames or single-label wildcards (`cdn.example.com`, `*.example.com`) and defaults to _nothing approved_. `localhost` and `127.0.0.1` are seeded, but that alone does not make a local bundle load — see **Local development** below. Failure is silent in the UI — check the console for `[FlowAppsLoader]` errors.
 
@@ -662,7 +626,7 @@ Your origin must be in the operator's **approved CDN origins** allowlist or the 
 
 ## Local development
 
-You can run the app on your own machine and have Flow load it straight from `localhost`, with no scan and no publishing — then it's just code and refresh. This needs Flow (Flow) **46.0.0-staging.320** or newer and NS API v2 **46.0.0-alpha.598** or newer.
+You can run the app on your own machine and have Flow load it straight from `localhost`, with no scan and no publishing — then it's just code and refresh. This needs a Flow server and NS API recent enough to support development remotes; ask your platform contact.
 
 1.  **Switch it on once per dev server.** A Super User adds an **API config** (not a UI config) under **Platform › API › API configs › Add API config**: name `NsUISDKDevRemotes`, value type boolean, value `true`, target your API server(s). It is for development servers, so it is not in the populated list.
 2.  **Run `npm run dev`** and check that `http://localhost:<dev-port>/remoteEntry.js` opens in your browser. The `devServer` block in `webpack.config.js` (`allowedHosts`, `client: false`, the `Access-Control-Allow-Private-Network` header) and `optimization.nodeEnv` are what make this work inside Flow — keep them.
@@ -759,7 +723,7 @@ Keep these out of `src/` — they are content rules, and most are hard rejects:
 | frame-escape (`window.top`, `parent.location`)                     | reject  |
 | `new Function(...)`                                                | flag    |
 
-A `size-delta` flag on your first 0.2.x submission is expected and needs no action. Note the analyser's rule policy is operator-tunable, so a local pass is not a guarantee of acceptance.
+Note the analyser's rule policy is operator-tunable, so a local pass is not a guarantee of acceptance.
 
 ````
 
@@ -779,8 +743,8 @@ requiredScopes: ['Admin', 'Super User']     // pinned literally — only when no
 
 The tiers are `PLATFORM`, `ADMINS`, `DOMAIN_MANAGERS`, `DOMAIN_ONLY`, `CALL_CENTER`,
 `END_USERS`. `SCOPE_GROUPS` in the SDK is a **fallback snapshot for local dev and
-tests**, not the enforcement path — read `useScopes()` / `flowContext.scopes` for
-the live vocabulary.
+tests**, not the enforcement path — read `flowContext.scopes` (optional; older
+hosts do not send it) for the live vocabulary.
 
 Three things that catch people out:
 
@@ -793,8 +757,10 @@ Three things that catch people out:
   host table is data on someone else's page; the scopes that page requires say
   nothing about who should see your column.
 
-For capabilities (streams and the like), `sdk.declareCapabilityScopes({ 'call-events:listen': 'CALL_CENTER' })`
-declares who *within* the app may exercise a granted capability. It is weaker than
+Streams take `requiredScopes` too, in the last argument of every `sdk.streams`
+method; see "Live data & your own events". For other capabilities,
+`sdk.declareCapabilityScopes({ 'notifications:send': 'ADMINS' })` declares who
+*within* the app may exercise a granted capability. It is weaker than
 `requiredScopes` — the platform grant is still what enables the capability at all —
 so treat it as intent, not enforcement.
 
@@ -820,8 +786,8 @@ receives a signed webhook and must verify it:
 - `X-NS-Signature-Version: 2` identifies the scheme.
 
 `examples/vendor-backend` in this repository is a working implementation with the
-raw-body capture wired up correctly; Part 6 of the migration guide explains the
-rest.
+raw-body capture wired up correctly; Part 6 of `MIGRATION-0.1.x-TO-0.2.x.md`
+explains the rest.
 
 ## Calling the NetSapiens API (contract)
 
@@ -829,10 +795,12 @@ Read/write platform data through `flowContext.api` — the host-brokered,
 audited proxy. The app never sees the user's token.
 
 ```tsx
-const { api, user } = useFlowContext(); // (or destructure from useRemoteApp in App.tsx)
+const { api } = useFlowContext(); // (or destructure from useRemoteApp in App.tsx)
 
-const devices = await api.get<Device[]>(`/domains/${user.domain}/users/${user.extension}/devices`);
-await api.post(`/domains/${user.domain}/users/${user.extension}/contacts`, {
+// `~` resolves to the signed-in session's domain / user. For an admin page about a
+// managed domain, use `useManagingDomain().managing ?? '~'` as the domain.
+const devices = await api.get<Device[]>('/domains/~/users/~/devices');
+await api.post('/domains/~/users/~/contacts', {
   /* … */
 });
 // also: api.put<T>(path, data), api.delete<T>(path)
@@ -935,7 +903,7 @@ if it re-themes with it. Four things the host hands you, and how each behaves:
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | `ui.*` components / `ui.templates.*` | host MUI components (`Button`, `Paper`, `Chip`, `PageTemplate`, …)                                      | **Yes** — wrapped in the host's MUI `ThemeProvider`, they re-color automatically |
 | `useTheme() → { theme }`             | the `'light' \| 'dark'` mode string                                                                     | **Yes** — flips the instant the user toggles                                     |
-| `ui.theme` (`ThemeTokens`)           | design tokens: `colors`, `spacing`, `typography`, `borderRadius`, `shadows`                             | **Snapshot** — frozen at the mode active when the route first mounted            |
+| `ui.theme` (`ThemeTokens`)           | design tokens: `colors`, `spacing`, `typography`, `borderRadius`, `shadows`                             | **Snapshot** — per mode; whether it is refreshed depends on the host version     |
 | `ui.styles`                          | pre-built semantic style objects (`surface.card`, `text.*`, `badge.*`, `divider`) baked from the tokens | **Snapshot** — same as `ui.theme`                                                |
 
 **Why the snapshot.** Three pieces, none wrong on its own, and the bug lives in
@@ -944,17 +912,17 @@ their interaction — worth knowing, because it is easy to reintroduce:
 1. **The host is fine.** It keeps one frozen `ui` surface _per colour mode_ and
    rebuilds the whole context when the mode changes. Correct tokens are handed
    over every time.
-2. **The provider refreshes only two fields.** `FlowContextProvider`
-   re-spreads `{ ...context, theme, locale }` and never touches `context.ui`.
-3. **So freezing the context pins `ui`.** The `useMemo([], …)` page wrapper in
-   `App.tsx` — needed for stable component identity — closes over the context
-   from first paint unless you read it through a ref. Then `theme` keeps
+2. **The page wrapper freezes the context.** The `useMemo([], …)` page wrapper
+   in `App.tsx` — needed for stable component identity — closes over the
+   context from first paint, so the rebuilt context never reaches it.
+3. **So the provider keeps the live fields current.** `FlowContextProvider`
+   keeps `theme`, `locale`, `managing` and `ui` live from host events; `ui`
+   arrives with `theme:changed`. On a host too old to send it, `theme` keeps
    updating while `ui.theme`/`ui.styles` stay on the load-time mode.
 
-The `App.tsx` template above uses the ref, which is why its pages see a live
-`ui`. Keep it. But do not treat that as licence to style from tokens: it holds
-only as long as the ref does, and inline token styling still skips the focus
-rings, hover states and a11y that kit components carry.
+Do not treat a live `ui` as licence to style from tokens: it depends on the host
+version, and inline token styling still skips the focus rings, hover states and
+a11y that kit components carry.
 
 Note also that **zone extensions and dynamic columns are immune** — the host
 re-derives their `ui` per render, so this only ever bites full-page routes.
@@ -978,8 +946,11 @@ Rules that keep an app theme-correct:
    glyph) branch on the reactive `theme`. Never read it from the snapshot: the
    token builders (`getThemeTokens`/`getUIStyles`) are host-internal and **not**
    exported, so you cannot recompute fresh ones yourself.
-5. **Don't subscribe to `theme:changed` directly** — `useTheme()` already does,
-   in both pages (via provider) and standalone extensions (via `context.eventBus`).
+5. **Don't track `theme:changed` yourself** — there is no bus on the public
+   types to subscribe to. In pages, `useTheme()` reads the provider. In
+   host-rendered components (extensions, widgets, columns), call
+   `useTheme(context)` or read `context.theme`; the host re-renders them on a
+   toggle.
 
 ## Rendering a data table (contract)
 
@@ -1123,7 +1094,7 @@ Your component is handed `{ context, widget, actions }`:
 | ---------------- | ----------------------------------------------------------- |
 | `'shared-range'` | `widget.range`, as resolved from/to timestamps              |
 | `'own-cadence'`  | No range — you own the timer                                |
-| `'realtime'`     | No range — data arrives by push on your scoped event bus    |
+| `'realtime'`     | No range — data arrives by push (`sdk.streams`)             |
 | _omitted_        | Nothing. Correct for a widget whose content cannot go stale |
 
 Declaring one you do not need is a claim the host acts on: it hands you a range
@@ -1132,12 +1103,13 @@ and invites a dependency on a control unrelated to your card.
 Two gates beyond `requiredScopes`, answering different questions:
 
 ```tsx
-// What your APP was granted. Checked before the widget reaches the catalogue,
-// so a platform with the capability switched off never offers an empty card.
-requiredPermissions: ['call-events:listen'],
+// What your APP was granted: `streams:<grant>` for the stream the widget
+// depends on. Checked before the widget reaches the catalogue, so a platform
+// with that grant switched off never offers an empty card.
+requiredPermissions: ['streams:softphone'],
 // Your own predicate, evaluated last, on every read. One that throws hides the
 // widget rather than taking the dashboard's render down, so be strict.
-condition: (context) => Boolean(context.eventBus),
+condition: (context) => Boolean(context.user?.username),
 ```
 
 **Do not draw a card, a heading or padding.** The frame draws all of it, from
@@ -1167,9 +1139,9 @@ colour, so it follows the toggle and a reseller's palette with nothing to update
 to match by hand. It exists for host panels that predate the widget frame; an app
 that sets it gets two titles and a double inset, or loses the header entirely.
 
-**Do not emit `dynamic-widget:register` on the bus.** `registerWidget` is the
-only supported path; the bus is an SDK implementation detail and the event names
-are not exported.
+**`registerWidget` is the only way to contribute a widget.** The channel the
+SDK uses to talk to the host is not on any public type, and its event names are
+not exported.
 
 A **leaf** goes inside a host container rather than becoming a card of its own:
 
@@ -1223,53 +1195,167 @@ Check what you contributed under **Platform → UI SDK management → Registered
 apps**, which lists your widget zones and whether each is enabled. A refused
 registration logs the reason; it never fails silently.
 
-## Host events & data streams (contract)
+## Live data & your own events (contract)
 
-Two rules govern how a remote app talks across the host boundary. The host **enforces** both — get them right.
+Two rules govern how a remote app gets data across the host boundary, and how
+its own pieces talk to each other.
 
-### 1. Host data streams are capability-gated — never read the raw bus
+### 1. Live host data comes through `sdk.streams`
 
-Live host data (call events, subscriber / device / registration changes) is delivered **only** through the SDK as per-app callbacks. It is **not** broadcast on `eventBus`, so `flowContext.eventBus.on('call-event' | 'subscriber:*', …)` receives nothing.
+Calls, queues, agents, presence, contacts, notifications, user records, devices,
+call records and the user's own softphone arrive through `sdk.streams`. Each
+subject is a namespace and each thing you can watch is a named method. You pass
+the arguments and one handler per event you want. The full guide ships with the
+SDK: `node_modules/@netsapiens/flow-sdk/STREAMS.md`.
 
 ```tsx
-// Call events — typed helper:
-const stop = sdk.subscribeToCallEvents(
-  ['call-started', 'call-answered', 'call-ended'],
-  (event) => {
-    /* … */
-  },
+// Anywhere: calling the method IS the subscription.
+const sub = sdk.streams.queues.onQueue('6000', {
+  stats: (q) => setStats(q), // QueueStats
+  agentUpdated: (a) => setAgent(a), // AgentStatus
+});
+sub.status; // { state: 'pending' } → { state: 'live', snapshot: true } …
+sub.onStatus((status) => setStatus(status)); // returns a remover
+sub.unsubscribe(); // safe to call twice; sdk.cleanup() also does it
+```
+
+- **Calling a method is the subscription.** There is no register step. Two calls
+  for the same feed get independent handles over one shared connection.
+- **Handlers choose the events.** Leave a handler out and that event is not
+  delivered, and the host does not open the feed behind it. A method with one
+  kind of event takes a single function.
+- **Every method takes `{ onStatus?, requiredScopes? }` last.** `requiredScopes`
+  narrows only: a user outside it gets `refused` with reason `scope`.
+
+In a component, use `useStream`. It subscribes on mount, unsubscribes on
+unmount, resubscribes when `deps` change, and returns the status. It takes the
+`sdk` from `useRemoteApp`; hand it to the page from `App.tsx` (it is stable for
+the life of the app).
+
+```tsx
+import type { QueueStats, RemoteAppSDK } from '@netsapiens/flow-sdk';
+import { useState } from 'react';
+import { useFlowContext, useStream } from '@netsapiens/flow-sdk';
+
+function QueueBoard({ sdk, queue }: { sdk: RemoteAppSDK; queue: string }) {
+  const { ui } = useFlowContext();
+  const [stats, setStats] = useState<QueueStats | null>(null);
+  const status = useStream(
+    sdk,
+    (streams) => streams.queues.onQueue(queue, { stats: setStats }),
+    [queue],
+  );
+
+  const { Alert } = ui ?? {};
+  if (status.state === 'refused')
+    return Alert ? <Alert severity='info'>{status.message}</Alert> : null;
+  if (status.state === 'unavailable')
+    return Alert ? <Alert severity='warning'>Reconnecting…</Alert> : null;
+  return <StatsCard stats={stats} />;
+}
+```
+
+**Status is part of your UI.** Treat any state you do not recognise as not live;
+`isStreamLive(status)` does that check.
+
+| `status.state` | Meaning                                                                                       | What to do                                                              |
+| -------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `pending`      | Asked for, not answered yet. Sent again when the user, scope or managed domain changes.       | Show a quiet loading state. **After a `live`, clear what you hold.**    |
+| `live`         | Data is flowing. `snapshot: true` means the host replayed what it held; `false`, from now on. | When `snapshot` is `false` and you need history, seed from the API.     |
+| `refused`      | The host will not serve it. `reason` is `not-granted`, `scope`, `no-source` or `invalid`.     | Show `message`: the host wrote it for the user. Do not retry in a loop. |
+| `unavailable`  | The live connection dropped, or is not up yet. It goes `live` again by itself.                | Show that the data may be stale.                                        |
+| `unconfirmed`  | No answer within 5 seconds. Almost always a host that predates `sdk.streams`.                 | Fall back to polling the API, or say live data is not available here.   |
+
+**Keep a page's data while it is closed: `retain`.** A `useStream` subscription
+closes with its component, so a page left and reopened starts empty. For a page
+that must show everything since the user signed in, open the subscription at
+startup, beside `registerRoute`, and attach from the page with the same key:
+
+```tsx
+// In App.tsx, at startup. The handlers name the events to keep and are called
+// for every delivery all session; no-ops are fine.
+sdk.streams.retain('domain-calls', (streams) =>
+  streams.calls.onDomainCalls({ updated: () => {}, ended: () => {} }),
 );
 
-// Other host streams (subscriber / device / registration):
-const stop2 = sdk.subscribeToStream('subscriber', ['user'], (event) => {
-  /* … */
-});
-
-// Call stop()/stop2() to unsubscribe; sdk.cleanup() also tears them down.
-// The useStream(eventBus, webpackModule, streamId, eventTypes, cb) hook does
-// the same with automatic cleanup.
+// In the page: the same call, plus the key.
+const status = useStream(
+  sdk,
+  (streams) => streams.calls.onDomainCalls({ updated, ended }),
+  [],
+  { retain: 'domain-calls' },
+);
 ```
 
-Each stream is gated by a `<streamId>:listen` capability. Declare it as `requiredPermissions` on the extension config that needs it — the platform analyser extracts those from your submitted source, and the Capabilities column on Registered Apps is a read-only view of what it found. There is no `permissions` field on the registration to list them in. The capability must also be enabled **platform-wide**; an administrator can disable any capability globally, and a disabled one silently ignores the subscription. Subscriptions are attributed to your app on the Registered Apps page.
+On mount the page gets the latest copy of every kept record in one batch, then
+live deliveries. It keeps current state, not history, at most 500 records per
+key; build counters and trend lines in `retain`'s own handlers, which are not
+unmounted with the page. It costs a feed for the whole session for every user,
+so retain only what a page must have complete. Close it with
+`sdk.streams.release(key)`; `sdk.cleanup()` closes them all.
+`src/pages/liveOperations/` in this repository is the worked example.
 
-| `subscribeToStream` id | Capability            | Carries                                             |
-| ---------------------- | --------------------- | --------------------------------------------------- |
-| `call-events`          | `call-events:listen`  | SIP call lifecycle (prefer `subscribeToCallEvents`) |
-| `subscriber`           | `subscriber:listen`   | subscriber / user record changes                    |
-| `device`               | `device:listen`       | device state                                        |
-| `registration`         | `registration:listen` | SIP registration state                              |
+**How access works.** Two checks, both on every event:
 
-### 2. The event bus is per-app scoped — use it only for your own custom events
+1. **Your app's grants.** You never declare them. When you submit a version, the
+   platform reads your source (through the source maps, so `sourcesContent` is
+   required), finds the `sdk.streams` calls in it, and derives the grants:
+   `softphone`, `calls.domain`, `queues`, `presence`, `cdrs` and so on. They go
+   live when the version is promoted. So write each call plainly
+   (`streams.queues.onQueue(`): a method picked at runtime
+   (`streams[subject][method](…)`) is not detected and is refused as
+   `not-granted`. A new stream call needs a new version. An operator can switch
+   any grant off platform-wide in SDK Settings, which refuses even open
+   subscriptions at the next event.
+2. **The signed-in user's scope.** Your app sees only what the user may see, in
+   the domain they are working in. Roughly: domain-wide calls, queues,
+   subscribers and call records are for Office Managers, Call Center Supervisors,
+   Super Users and Resellers; a Call Center Agent sees only their own queues and
+   never caller details; presence, contacts and notifications are everyone's, in
+   their own domain; `softphone.*` is everyone's own. STREAMS.md "Who can see
+   what" has the full table. Your `requiredScopes` can only narrow it.
 
-The host hands each app a **scoped** `eventBus`. Custom events you emit are automatically confined to your app's namespace: they reach your own pages and extensions (e.g. a `table-row-actions` extension signalling your page or side panel) but never another app — and you cannot listen to host channels or another app's events.
+A widget or extension that depends on a stream gates on it with
+`requiredPermissions: ['streams:<grant>']` (for example `'streams:softphone'`),
+so a platform with that grant switched off never offers it.
+
+### 2. Your own components talk through your own module
+
+There is no bus for an app's own messages. A page, its extensions and its
+widgets all ship in one bundle, so share a module: a small store or listener set
+beside the state it describes, imported by the code that emits and the code that
+listens.
 
 ```tsx
-// Intra-app coordination only — the host scopes this to your app automatically.
-flowContext.eventBus.emit('<app-id>:refresh', payload);
-flowContext.eventBus.on('<app-id>:refresh', handler); // clean up in your effect
+// src/services/callEvents.ts — imported by the page and the widget alike.
+type Listener = (call: EnrichedCall) => void;
+const listeners = new Set<Listener>();
+
+export function onCallChanges(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+export function publishCall(call: EnrichedCall) {
+  listeners.forEach((listener) => listener(call));
+}
 ```
 
-Do **not** subscribe to `theme:changed` / `locale:changed` directly — use `useTheme()` / `useLocale()`. Opening the shared side panel from an extension is a built-in control event — use `useSidePanel()`, not a custom event.
+`onCallChanges` in `src/services/callEnrichment.ts` is the reference: the
+softphone stream feeds it, and the `CallerInfoWidget` extension and the Live
+calls widget listen. Return the remover from your
+effect so a listener goes away with its component.
+
+Host features each have a method; never look for an event to subscribe to.
+Theme, locale and managed domain: `useTheme()`, `useLocale()`,
+`useManagingDomain()` in a page, or `context.theme` / `context.managing` (or the
+hook with `context`) in a host-rendered component. The side panel:
+`useSidePanel(context).open({ … })` from an extension, widget or column, or
+`context.openSidePanel?.(config)` directly, which needs a newer host
+(`useSidePanel` works on both); in a page, `useSidePanel().open({ … })` with no
+argument.
 
 ## After scaffolding
 
@@ -1314,20 +1400,19 @@ host UI kit finds out what it is missing.
 
 - Replace **all** placeholders before writing files: `<app-id>`, `<display-name>`, `<module-scope>`, `<dev-port>`, `<author>`.
 - **Keep `KIT-GAPS.md` up to date as you build — this is a running log, not a scaffold-time file.** The kit is deliberately smaller than MUI, so sooner or later you will want a component it does not have. Whenever that happens, do not just work around it silently: append an entry recording what you reached for, what you used instead (with the file path), what it cost, and the component shape that would have fit. You are the only observer who has that reasoning while it is still live — a developer reading the finished code months later cannot reconstruct why a `ToggleButtonGroup` is pretending to be a tab strip. This file is the sole mechanism by which the host UI kit learns what it is missing, so an unrecorded workaround is a gap nobody ever hears about. If you finish with no gaps, leave the file with its commented-out template; an empty log is a real signal too.
-- **The federation name is single-sourced.** `<module-scope>` (camelCase) is now hardcoded in exactly one place — `MODULE_NAME` in `webpack.config.js`, which `MF_NAME` overrides for a local run — and flows into the app via `DefinePlugin` (`__MF_NAME__`), which `useRemoteApp(flowContext, __MF_NAME__)` consumes. Do **not** also hardcode the module name in `App.tsx`. `<module-scope>` must be a valid JS identifier (camelCase, no dashes); the SDK/host derive the kebab `<app-id>` from it, which is what you use for route ids/paths (`<app-id>.main`, `/apps/<app-id>`) and the registration's `capabilities.routes`.
+- **The federation name is single-sourced.** `<module-scope>` (camelCase) is now hardcoded in exactly one place — `MODULE_NAME` in `webpack.config.js`, which `MF_NAME` overrides for a local run — and flows into the app via `DefinePlugin` (`__MF_NAME__`), which `useRemoteApp(flowContext, __MF_NAME__)` consumes. Do **not** also hardcode the module name in `App.tsx`. `<module-scope>` must be a valid JS identifier (camelCase, no dashes); the SDK/host derive the kebab `<app-id>` from it, which is what you use for route ids/paths (`<app-id>.main`, `/apps/<app-id>`).
 - Don't pull in MUI as a direct dependency — every UI component comes from `flowContext.ui`. They're wrapped in the host MUI `ThemeProvider`, so they re-theme on a live dark/light toggle for free — which is exactly why hand-rolled markup colored from raw tokens drifts out of sync.
-- **RULE 1 is the one to re-read before writing any JSX — see the top of this skill, and "What's in the kit".** Every visible element comes from `ui.*` / `ui.templates.*`; colours go in `sx` as palette paths. Never paint from `ui.theme.colors` or `ui.styles` — they are per-mode snapshots, so hand-rolled markup silently stops following the dark/light toggle, and `getThemeTokens`/`getUIStyles` are host-internal so you cannot recompute fresh ones. `useTheme() → { theme }` is the only reactive mode signal, and it is for _picking_ a value you own. In standalone extensions (outside the provider) call `useTheme(context.eventBus, context.theme)`. Full mechanism in "Theming & dark/light mode".
+- **RULE 1 is the one to re-read before writing any JSX — see the top of this skill, and "What's in the kit".** Every visible element comes from `ui.*` / `ui.templates.*`; colours go in `sx` as palette paths. Never paint from `ui.theme.colors` or `ui.styles` — they are per-mode snapshots, so hand-rolled markup silently stops following the dark/light toggle, and `getThemeTokens`/`getUIStyles` are host-internal so you cannot recompute fresh ones. `useTheme() → { theme }` is the only reactive mode signal, and it is for _picking_ a value you own. In host-rendered extensions (outside the provider) call `useTheme(context)`, or read `context.theme`. Full mechanism in "Theming & dark/light mode".
 - **Close over `flowContext` in the memoized page wrapper; do not add a `contextRef`.** The wrapper's empty deps freeze the context at first paint, and `FlowContextProvider` keeps `theme`, `locale`, `managing` and `ui` live from host events, so pages still follow the dark/light toggle. A ref that re-reads the context hides a provider regression instead of exposing it. On a host too old to send `ui` with `theme:changed`, `ui.theme`/`ui.styles` stay on the first-paint mode, which is one more reason to build from `ui.*` components and palette paths rather than painting from tokens.
 - **Only `react`, `react-dom`, and `loglevel` go in webpack `shared`.** Any other runtime dependency (e.g. a WebRTC/signaling/charting lib) is bundled normally — just `npm install` it and import it. Do **NOT** add a non-host-provided lib to `shared` as a `singleton`: the host's federation loader doesn't register it, so it crashes at load with "Unsatisfied version". (This is also why MUI is absent from `shared`.) The host also provides `i18next` and `react-i18next`, but you reach translations through `context.t` rather than sharing them.
 - **Never put `@netsapiens/flow-sdk` in `shared`.** It is the one entry that looks like it belongs and does not. Sharing it fails the build with "contains unresolved integrity placeholders" and fails verification on `sdk-not-shared`. Remove it entirely — `import: false` is not a workaround.
-- **Pages read context via `useFlowContext()`, not props.** Wrap each page component once in `<FlowContextProvider context={flowContext}>` inside `App.tsx` (memoized with **empty deps** for stable identity — the provider keeps theme/locale live via the eventBus). Don't prop-drill `flowContext` into pages. Extensions are different — they receive `context` as a prop (`ExtensionComponentProps`) and read `context.ui` directly.
+- **Pages read context via `useFlowContext()`, not props.** Wrap each page component once in `<FlowContextProvider context={flowContext}>` inside `App.tsx` (memoized with **empty deps** for stable identity — the provider keeps `theme`, `locale`, `managing` and `ui` live from host events). Don't prop-drill `flowContext` into pages. Extensions are different — they receive `context` as a prop (`ExtensionComponentProps`) and read `context.ui` directly.
 - **Host UI components are properly typed — do not cast them.** They carry real prop contracts (`HostComponentProps`, or a named interface where the shape is specific). Casting to `ComponentType<unknown>` or `ComponentType<Record<string, unknown>>` was a 0.1.x-era workaround and is now actively wrong: props are contravariant, so `unknown` demands a component accepting every possible props object, and React 19 reads it as `IntrinsicAttributes` — "accepts no props" — which makes `<Paper sx={{ p: 2 }}>x</Paper>` a type error. Destructure from `ui` and use them directly.
 - **Route menu position uses `placement`, not `order`.** `RouteConfig` has no `order` field — use `placement: { first: true } | { last: true } | { after: 'anchor' } | { before: 'anchor' }` (anchors resolve by fuzzy match). `registerRoute` is async — `.catch()` it.
 - Don't use `sdk.registerExtension` (legacy, removed). Use `sdk.registerDynamicExtension` with a zone + route patterns.
-- **Never read host data streams off the raw bus.** `eventBus.on('call-event' | 'subscriber:*' | …)` receives nothing — host streams are delivered only via `sdk.subscribeToCallEvents(...)` / `sdk.subscribeToStream(streamId, eventTypes, cb)` (capability-gated, attributed). See "Host events & data streams".
+- **Live host data comes only through `sdk.streams`.** `sdk.streams.<subject>.<method>(handlers)` returns a `Subscription` (`status`, `onStatus`, `unsubscribe`); in a component use `useStream(sdk, (streams) => …, deps, { retain? })`. Grants are derived from the `sdk.streams` calls in your submitted source, so write each call plainly and submit a new version when you add one. Render the status: show a `refused` message, and clear held records on `pending` after `live`. See "Live data & your own events".
 - **Declare `requiredScopes` on every route, extension and column — see "Declaring who a surface is for".** Omitting it means every signed-in user can reach the surface; the host no longer treats a hidden menu entry as a gate. Prefer a tier name (`'ADMINS'`) over a literal scope array, and write it inline so a typo is a compile error — a malformed declaration refuses the whole registration rather than being ignored.
-- **Streams are capability-gated.** For any stream the app subscribes to, add its `<streamId>:listen` capability to the registration `permissions` (e.g. `call-events:listen`); a platform admin enables it per app. Without the grant, the subscription is silently dropped.
-- **The event bus is per-app scoped.** Use `eventBus` only for the app's _own_ custom events (intra-app coordination — your page ↔ your extensions), namespaced with the appId prefix; the host confines them to your app and blocks cross-app/host-channel access. Don't subscribe to `theme:changed` / `locale:changed` directly — use `useTheme()` / `useLocale()`.
+- **Your own components talk through your own module.** A page, its extensions and its widgets share one bundle, so coordinate them with a module-level store or listener set (the demo's `onCallChanges` in `src/services/callEnrichment.ts`), not a host channel. Hooks that need host state take the host-rendered component's `context`: `useTheme(context)`, `useManagingDomain(context)`, `useSidePanel(context)`; with no argument they read the `FlowContextProvider`. `useRoute`, `useRouteFromModule`, `useDynamicExtension`, `useDynamicColumn` and `createRemoteAppSDK` take `flowContext`.
 - Don't import from `@netsapiens/flow-sdk/client` or `/ui` — only the root entry exists.
 - **Domain pages have two route shapes.** Admins above the domain get `/manage/:domain/<page>`; the domain's own Office/Site Manager gets `/home/domain/<page>`, with no `:domain` param (read `user.domain`). Register both patterns, or domain managers never see the extension.
 - **`locale` is not a BCP 47 tag.** Flow sends forms like `enUS`; `localeCompare`/`Intl.*` throw `RangeError: Invalid language tag`. Map it to a valid tag (e.g. `fr*` → `'fr'`, else `'en'`) before any locale-sensitive call.

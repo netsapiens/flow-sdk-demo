@@ -34,6 +34,26 @@ matches Flow in light and dark mode.
 > the migration guide exists to explain. The skill is written against the same SDK
 > version this demo uses.
 
+## What's new in flow-sdk 0.3.x
+
+The SDK was renamed and gained live streaming in 0.3.x. This demo runs on
+**`@netsapiens/flow-sdk` ^0.3.6** and shows each change working. The SDK's own
+README (its **Migration** section, `node_modules/@netsapiens/flow-sdk/README.md`)
+and `STREAMS.md` are the references. This is where to see each change in the
+demo.
+
+| Change                                                                                                                                                                                                                                                                       | What to do                                                                                                                                                                                                                                                                                                                       | Where the demo does it                                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Package renamed** (0.3.0): `@netsapiens/horizon-sdk` → `@netsapiens/flow-sdk`, with `Flow*` names (`FlowContext`, `FlowContextProvider`, `useFlowContext`, `flowContext`).                                                                                                 | Install `@netsapiens/flow-sdk` and rename the imports. The scaffold skill is now `create-flow-app`.                                                                                                                                                                                                                              | Everywhere. This repo was renamed to match (`flow-sdk-demo`, container `flowExtensionDemo`).                                                                       |
+| **Live data is `sdk.streams`** (0.3.0): one named method per feed (`calls`, `queues`, `agents`, `presence`, `contacts`, `notifications`, `subscribers`, `devices`, `cdrs` call records, your own `softphone`). Grants are read from your bundle when a version is submitted. | `sdk.streams.<subject>.<method>(handlers)`, or `useStream(sdk, (streams) => …, deps)` in a component. Show `status.message` when a stream is `refused`.                                                                                                                                                                          | **Apps → Live Operations** (`src/pages/liveOperations/`), and the softphone feed in `App.tsx`.                                                                     |
+| **Retained streams** (0.3.3; handlers called since 0.3.5): a feed that outlives the page, so a page opened later starts with everything delivered so far.                                                                                                                    | `sdk.streams.retain(key, factory)` at startup, then `useStream(…, deps, { retain: key })` in the page.                                                                                                                                                                                                                           | `liveFeeds.ts` retains eight feeds at startup; `liveState.tsx` attaches to them.                                                                                   |
+| **A session change reports `pending`** (0.3.4): when the user, scope or managed domain changes (an admin switching domain, a masquerade), each stream goes `pending` again.                                                                                                  | `pending` after `live` means clear what you hold; the new session's data follows.                                                                                                                                                                                                                                                | `useResetOnPending` in `liveState.tsx`.                                                                                                                            |
+| **No starting snapshot for some feeds**: queue stats, agents, presence and devices send changes only.                                                                                                                                                                        | Read the current state from the API once, then let the stream keep it current.                                                                                                                                                                                                                                                   | `liveSeed.ts` (queues, agents, phones from `/domains/~/…`).                                                                                                        |
+| **The event bus left the public surface** (0.3.6): no `eventBus` on `FlowContext` or `ExtensionContext`, and no `FlowEventBus` type.                                                                                                                                         | Side panel: `useSidePanel(context)` or `context.openSidePanel?.(config)`. Theme and managed domain: `useTheme(context)` / `useManagingDomain(context)`, or `context.theme` / `context.managing`. Hooks and `createRemoteAppSDK` take `flowContext`. Messages between your own components: a module-level emitter in your bundle. | Side panels in `QuickActionButton`, `TopbarHelpButton`, `LiveCallsWidget`, `PartnerLinksWidget`; the emitter is `onCallChanges()` in `services/callEnrichment.ts`. |
+
+An app still built on an SDK older than 0.3.6 should be rebuilt on it: a host
+without the bus cannot register what the old bundle declares.
+
 ## What it demonstrates
 
 This single app registers **5 full-page routes**, **10 zone extensions**, **1
@@ -204,9 +224,12 @@ app-provided React content, from anywhere — an extension, a page, or a call
 handler. The content component receives `{ context, close }`.
 
 ```tsx
-const { open } = useSidePanel(context.eventBus); // pass eventBus in extensions
+const { open } = useSidePanel(context); // an extension's, widget's or column's own context
 open({ title: 'Call details', width: 'sm', component: CallDetailsPanel });
 ```
+
+On a host with `context.openSidePanel` (netsapiens-horizon #652) the hook calls
+it directly; on an older host it falls back, so the same call works on both.
 
 The demo opens it from a **Call Logs row action** (`CallDetailsPanel`) and from
 the **global topbar Help button** (`QuickLinksPanel`).
@@ -217,8 +240,8 @@ A sortable/filterable **Priority** column merged into the host's Call Logs table
 (`columns/CallPriorityColumn.tsx`), zone `call-logs-columns`.
 
 `renderCell` receives `(params, context)` — the second argument is the same
-`ExtensionContext` a zone extension gets (`ui`, `theme`, `t`, app-scoped
-`eventBus`). This cell renders through `context.ui.Chip`, so it re-colours with
+`ExtensionContext` a zone extension gets (`ui`, `theme`, `t`, and the
+side-panel methods). This cell renders through `context.ui.Chip`, so it re-colours with
 the host's light/dark toggle; its fallback branch shows the alternative for
 app-owned colours (branch on `context.theme`, never on the `ui.theme` snapshot).
 One-argument renderers stay valid — the context is purely additive.
@@ -237,7 +260,7 @@ the table and every axis of `WidgetRegistration` appears at least once.
 | **Recent activity**      | `panel`                           | `activity` | The baseline: `refreshPolicy: 'shared-range'`, `widget.pixel`, `actions`. Offered on two dashboards                                             | `widgets/RecentActivityWidget.tsx`   |
 | **Call volume**          | `panel`                           | `charts`   | Full width, `height: 5`, and `metric` provenance — which the host frame draws as a tooltip beside the title                                     | `widgets/CallVolumeChart.tsx`        |
 | **CRM sync queue**       | `panel`                           | `tables`   | `refreshPolicy: 'own-cadence'` — its own timer, no `widget.range` — and the one place `actions.refresh()` earns a button. Built from `ui.Table` | `widgets/SyncQueueTable.tsx`         |
-| **Live calls**           | `panel`                           | `stats`    | `refreshPolicy: 'realtime'` over the app-scoped event bus, plus `requiredPermissions` and a `condition`                                         | `widgets/LiveCallsWidget.tsx`        |
+| **Live calls**           | `panel`                           | `stats`    | `refreshPolicy: 'realtime'` fed by `sdk.streams.softphone`, plus `requiredPermissions` and a `condition`                                        | `widgets/LiveCallsWidget.tsx`        |
 | **Integration health**   | `panel` + `acceptsLeaves`         | `other`    | A **container the app ships itself**: the host draws its body and the two leaves below reorder inside it                                        | `widgets/IntegrationHealthPanel.tsx` |
 | **Contacts synced**      | `leaf` (`leafOf: 'demo-insight'`) | `stats`    | A leaf in the app's **own** container                                                                                                           | `widgets/SyncedContactsStat.tsx`     |
 | **Sync failures**        | `leaf` (`leafOf: 'demo-insight'`) | `stats`    | The second leaf — one proves they land, two prove they reorder                                                                                  | `widgets/SyncFailuresStat.tsx`       |
@@ -361,14 +384,24 @@ events you want; you never name a socket room or an event list. Calling a method
 _is_ the subscription, and every method returns a handle with `status`,
 `onStatus()` and `unsubscribe()`.
 
-**Live Operations** (`/apps/live-operations`, `pages/LiveOperationsPage.tsx`) is
-the worked example — a tabbed wallboard of eight feeds, each opened with `useStream`:
+**Live Operations** (`/apps/live-operations`, `pages/liveOperations/`) is the
+worked example: a wallboard of eight feeds. `liveFeeds.ts` **retains** each one
+when the app starts, so they keep collecting while the page is closed, and the
+page attaches to them with `useStream(…, { retain })` (`liveState.tsx`):
 
 ```tsx
+// App startup (liveFeeds.ts): open for the session; these handlers are called
+// for every delivery (0.3.5+).
+sdk.streams.retain('queue-stats', (streams) =>
+  streams.queues.onDomainQueues({ stats: (q) => sample(q) }),
+);
+
+// The page (liveState.tsx): every kept record arrives at once on mount.
 const status = useStream(
   sdk,
   (streams) => streams.queues.onDomainQueues({ stats: (q) => upsertQueue(q) }),
   [],
+  { retain: 'queue-stats' },
 );
 ```
 
@@ -393,8 +426,14 @@ What the page is there to show:
   summary and disposition land. The Call records tab keeps the latest version
   of each record and lists every delivery with the fields that changed.
 - **`live.snapshot`** says whether the host replayed what it already held. When
-  it is `false` the card fills as things change; seed from the API if you need
-  history.
+  it is `false` the feed sends changes only. Queue stats, agents and phones are
+  like that, so `liveSeed.ts` reads their current state once from the API
+  (`/domains/~/callqueues`, `/agents`, `/devices`) and the streams keep it
+  current. On a domain too big to read every agent, it skips that read and the
+  agent counts come from each stats event's `domainTotals`.
+- **A session change clears the page.** When an admin switches domain or
+  masquerades, every stream reports `pending` again; `useResetOnPending`
+  (`liveState.tsx`) clears that feed's data, and the new session's follows.
 - **Nothing names a permission.** The platform reads these calls out of the
   bundle when a version is submitted and derives the grants (`queues`,
   `calls.domain`, `presence`, `devices`, `notifications.read`, `subscribers`,
@@ -409,10 +448,12 @@ and the result reaches `CallerInfoWidget` and the Live Calls dashboard card.
 The full reference — every method, its grant, who may see what, and the status
 model — ships in the SDK package as `STREAMS.md`: `node_modules/@netsapiens/flow-sdk/STREAMS.md`, or the [Code tab on npm](https://www.npmjs.com/package/@netsapiens/flow-sdk?activeTab=code) (from the release after 0.3.0).
 
-The enriched call is passed to `CallerInfoWidget` over a **custom event**
-(`demo:call-updated`). The host scopes each app's event bus, so that event stays
-within this app (reaching its own pages/extensions) and never leaks to another —
-the supported pattern for an app talking to its own components.
+The enriched call reaches `CallerInfoWidget` and the Live Calls card through
+`onCallChanges()` in `services/callEnrichment.ts`: a listener set in the app's
+own bundle, beside the `activeCallsStore` it keeps. That is the pattern for an
+app talking to its own components. The SDK has no event bus for it (it left the
+public surface in flow-sdk 0.3.6), and none is needed: every component of an app
+runs from the same bundle.
 
 ### Remote auth — `auth.requestRemoteAuth()`
 
@@ -652,14 +693,13 @@ The exposed `./App` component receives a `FlowContext` and initializes the SDK
 via `useRemoteApp()`. Page components read the live context with
 `useFlowContext()` (wrapped in `FlowContextProvider`). Key fields:
 
-| Field              | Purpose                                                                                                                     |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- |
-| `user`             | Signed-in user (`displayName`, `domain`, `extension`, `scope`, …)                                                           |
-| `api`              | Authenticated NetSapiens v2 API client (`get`/`post`/`put`/`delete`)                                                        |
-| `theme` / `locale` | Host theme (`light`/`dark`) and i18next translation function                                                                |
-| `navigate`         | Navigate the host router                                                                                                    |
-| `eventBus`         | Per-app **scoped** pub/sub — your custom events stay within your app; live data comes from `sdk.streams`, never raw `.on()` |
-| `ui`               | Themed MUI Aurora components + templates (PageTemplate, SidePanel, …)                                                       |
+| Field              | Purpose                                                               |
+| ------------------ | --------------------------------------------------------------------- |
+| `user`             | Signed-in user (`displayName`, `domain`, `extension`, `scope`, …)     |
+| `api`              | Authenticated NetSapiens v2 API client (`get`/`post`/`put`/`delete`)  |
+| `theme` / `locale` | Host theme (`light`/`dark`) and i18next translation function          |
+| `navigate`         | Navigate the host router                                              |
+| `ui`               | Themed MUI Aurora components + templates (PageTemplate, SidePanel, …) |
 
 ## UI rule — never hand-roll a component
 
@@ -876,6 +916,6 @@ that window will not see the extension. Keep the gap short.
   demonstrated standalone on the **Remote Auth** tab and can gate this page later.)
 - **The on-demand side panel** is rendered by the host's `SdkSidePanel`
   (`components/sdk/SdkSidePanel.tsx` in `netsapiens-horizon`), mounted once in
-  `MainLayout`. It reuses the shared `components/common/SidePanel` drawer and
-  listens on the SDK event bus, so any federated app can open it with
-  `sdk.openSidePanel()` / `useSidePanel()` from anywhere.
+  `MainLayout`. It reuses the shared `components/common/SidePanel` drawer, and
+  any federated app opens it with `useSidePanel(context)` (or
+  `context.openSidePanel`) from anywhere.

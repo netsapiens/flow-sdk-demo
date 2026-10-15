@@ -106,7 +106,7 @@ export const ZONES: ZoneInfo[] = [
       'Quick action on Call Logs rows → opens a Call details side panel.',
   },
   {
-    zone: 'call-logs-columns (dynamic column)',
+    zone: 'contacts-columns (dynamic column)',
     desc: 'A registered column merged into a host table.',
     usedFor: 'CRM Status (SDK) column on the domain Contacts table.',
   },
@@ -180,7 +180,7 @@ export interface WalkthroughItem {
 export const WALKTHROUGH: WalkthroughItem[] = [
   {
     label: 'Call Logs',
-    desc: 'Export button, CRM Status column, analytics widget, toolbar tips, and a row quick-action that opens a Call details side panel.',
+    desc: 'Export button, analytics widget, toolbar tips, and a row quick-action that opens a Call details side panel.',
     nav: '/manage/call-logs',
     badge: 'primary',
   },
