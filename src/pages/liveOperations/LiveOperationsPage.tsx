@@ -31,6 +31,10 @@ import {
 import { CRITICAL_WAIT_SEC } from './format';
 import { QueuePickContext } from './liveContext';
 import { LiveProvider } from './liveState';
+import {
+  ReceivedNotificationsCard,
+  SendNotificationCard,
+} from './notifications';
 import { Panel, Tile } from './parts';
 import { QueuePanel } from './QueuePanel';
 import { AgentBoardCard, LongestWaitsCard, OutcomesCard } from './wallboard';
@@ -247,6 +251,23 @@ const RECORDS: Cell[] = [
   ),
 ];
 
+const NOTIFICATIONS: Cell[] = [
+  panel(
+    'live-ops-send-notification',
+    'Send a notification',
+    SendNotificationCard,
+    NARROW,
+    'sdk.sendNotification(), to yourself',
+  ),
+  panel(
+    'live-ops-received-notifications',
+    'Received',
+    ReceivedNotificationsCard,
+    WIDE,
+    'notifications.onNotification, newest first',
+  ),
+];
+
 const TABS = [
   {
     value: 'overview',
@@ -277,6 +298,12 @@ const TABS = [
     label: 'Call records',
     icon: 'mdi:phone-log',
     cells: RECORDS,
+  },
+  {
+    value: 'notifications',
+    label: 'Notifications',
+    icon: 'mdi:bell-outline',
+    cells: NOTIFICATIONS,
   },
 ];
 
