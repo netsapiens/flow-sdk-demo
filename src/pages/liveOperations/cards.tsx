@@ -844,10 +844,7 @@ export function PhonesCard() {
 
 function severityTone(n: FlowNotification): Tone {
   // 'critical' is the platform's top level (security alerts, for instance).
-  // Hosts send it from the flow-sdk release after 0.3.6, whose type includes
-  // it; 0.3.6's does not, hence the string comparison. Drop the cast when the
-  // demo moves to that release.
-  if ((n.severity as string) === 'critical') return 'error';
+  if (n.severity === 'critical') return 'error';
   return n.severity === 'success' ||
     n.severity === 'warning' ||
     n.severity === 'error'
