@@ -3,13 +3,19 @@
  *
  * Bridges the SDK's live call-event stream to the demo's UI: when a call rings
  * in, it looks the caller up in the mock CRM (`mocks/crm.ts`), stores the
- * enriched record, and broadcasts it on the event bus so the `CallerInfoWidget`
- * can render a populated caller card. On call-ended it clears the record.
+ * enriched record, and tells the app's own listeners (`onCallChanges`) so the
+ * `CallerInfoWidget` and the Live calls widget can render it. On call-ended it
+ * clears the record.
+ *
+ * App-internal on purpose: these components live in the same bundle, so a
+ * module-level listener set is all they need. The host's event bus is not part
+ * of the SDK's public surface (flow-sdk 0.3.6), and was never meant for an
+ * app talking to itself.
  *
  * In production the CRM lookup would be a real API call; everything else (the
  * store + event contract) would stay the same.
  */
-import type { CallEvent, FlowEventBus } from '@netsapiens/flow-sdk';
+import type { CallEvent } from '@netsapiens/flow-sdk';
 
 import type { CrmRecord } from '../mocks/crm';
 import { lookupCrmRecord, normalizePhoneNumber } from '../mocks/crm';
@@ -67,9 +73,26 @@ export interface CallerInfo {
 /** In-memory store of active calls, shared across component instances. */
 export const activeCallsStore = new Map<string, CallerInfo>();
 
-/** Custom events the service emits on the host/remote event bus. */
-export const CALL_UPDATED_EVENT = 'demo:call-updated';
-export const CALL_REMOVED_EVENT = 'demo:call-removed';
+/** What a component hears about active calls (see onCallChanges). */
+export interface CallListener {
+  /** A call was added or changed; the record is also in activeCallsStore. */
+  updated?: (call: CallerInfo) => void;
+  /** A call ended; it has already left activeCallsStore. */
+  removed?: (callId: string) => void;
+}
+
+const listeners = new Set<CallListener>();
+
+/**
+ * Listen for active-call changes. Returns the function that stops listening;
+ * call it from the effect's cleanup.
+ */
+export function onCallChanges(listener: CallListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 function statusForEvent(type: CallEvent['type']): CallerInfo['status'] {
   if (type === 'call-answered') return 'answered';
@@ -78,22 +101,18 @@ function statusForEvent(type: CallEvent['type']): CallerInfo['status'] {
 }
 
 /**
- * Build a softphone call handler bound to the given event bus. Pass the result
- * to the `sdk.streams.softphone` methods (see App.tsx). Updates
- * `activeCallsStore` and emits `demo:call-updated` / `demo:call-removed` for
- * the CallerInfoWidget.
+ * Build a softphone call handler. Pass the result to the
+ * `sdk.streams.softphone` methods (see App.tsx). Updates `activeCallsStore`
+ * and tells every `onCallChanges` listener.
  *
  * A `CallEvent` names the other party (`remote`) rather than from/to, so the
  * direction decides which side the user's own extension was on.
  */
-export function createCallEventHandler(
-  eventBus: FlowEventBus,
-  ownExtension = '',
-) {
+export function createCallEventHandler(ownExtension = '') {
   return (event: CallEvent) => {
     if (event.type === 'call-ended') {
       activeCallsStore.delete(event.callId);
-      eventBus.emit(CALL_REMOVED_EVENT, event.callId);
+      listeners.forEach((l) => l.removed?.(event.callId));
       return;
     }
 
@@ -116,6 +135,6 @@ export function createCallEventHandler(
     };
 
     activeCallsStore.set(event.callId, enriched);
-    eventBus.emit(CALL_UPDATED_EVENT, enriched);
+    listeners.forEach((l) => l.updated?.(enriched));
   };
 }

@@ -47,9 +47,9 @@ export function PartnerLinksWidget({
   const { Stack, Typography, Button, Divider, Code } = context.ui ?? {};
   const navigate = context.navigate;
 
-  // Pass `context.eventBus`: a widget renders outside FlowContextProvider,
+  // Pass `context`: a widget renders outside FlowContextProvider,
   // exactly as a zone extension does, so the hook has no context to read.
-  const { open } = useSidePanel(context.eventBus);
+  const { open } = useSidePanel(context);
 
   // Carve-out: with no kit there is nothing to render but the list.
   if (!Stack || !Typography) {

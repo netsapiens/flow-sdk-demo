@@ -55,7 +55,7 @@ import { SyncQueueTable } from '../widgets/SyncQueueTable';
  *
  * The cast is the seam between two context shapes. `FlowContext` is the
  * page-level object and `ExtensionContext` the injected one; they overlap on
- * everything a widget reads (`ui`, `theme`, `eventBus`, `t`), which is why one
+ * everything a widget reads (`ui`, `theme`, `t`), which is why one
  * component can serve both surfaces at all.
  */
 function asPageWidget(

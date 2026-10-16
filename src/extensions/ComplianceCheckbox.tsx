@@ -3,7 +3,7 @@
  * Zone: `form-section-after` — injected below the contact form's fields.
  * Adds consent / marketing opt-in checkboxes to the contact form.
  */
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { type ExtensionComponentProps } from '@netsapiens/flow-sdk';
 
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
@@ -18,20 +18,10 @@ export default function ComplianceCheckbox({
   const [consented, setConsented] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
 
-  // Emit consent changes to the host form for integration.
-  useEffect(() => {
-    context.eventBus?.emit('form-data:updated', {
-      field: 'data-consent',
-      value: consented,
-    });
-  }, [consented, context.eventBus]);
-
-  useEffect(() => {
-    context.eventBus?.emit('form-data:updated', {
-      field: 'marketing-consent',
-      value: marketingConsent,
-    });
-  }, [marketingConsent, context.eventBus]);
+  // The choices stay in this component. Nothing in the host reads them: an
+  // extension cannot write into a host form's data today, so this demonstrates
+  // a form-section zone, not a form contribution. (It used to emit
+  // `form-data:updated` on the event bus, which no host listener received.)
 
   if (
     !Stack ||

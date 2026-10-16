@@ -843,6 +843,8 @@ export function PhonesCard() {
 // ── Feeds ────────────────────────────────────────────────────────────────────
 
 function severityTone(n: FlowNotification): Tone {
+  // 'critical' is the platform's top level (security alerts, for instance).
+  if (n.severity === 'critical') return 'error';
   return n.severity === 'success' ||
     n.severity === 'warning' ||
     n.severity === 'error'
