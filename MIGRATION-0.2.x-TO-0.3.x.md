@@ -2,12 +2,12 @@
 
 The guide for partners moving an app built on `@netsapiens/horizon-sdk` 0.2.x to
 **`@netsapiens/flow-sdk` 0.3.x**: what changed, what you must do, and where this
-demo shows each change working. Use the latest 0.3.x release (`^0.3.6`); 0.3.6
-is the minimum, and the code here is written against it.
+demo shows each change working. Install the latest 0.3.x release, `^0.3.7`; the
+code here is written against it.
 
 ```bash
 npm uninstall @netsapiens/horizon-sdk
-npm install @netsapiens/flow-sdk@^0.3.6
+npm install @netsapiens/flow-sdk@^0.3.7
 ```
 
 The SDK's own **Migration** section (`node_modules/@netsapiens/flow-sdk/README.md`)
@@ -20,7 +20,7 @@ says about bundle verification still holds.
 
 ## In one minute
 
-> **⚠️ Rebuild on `@netsapiens/flow-sdk` ^0.3.6 (the latest 0.3.x) and deploy
+> **⚠️ Rebuild on `@netsapiens/flow-sdk` ^0.3.7 (the latest 0.3.x) and deploy
 > the new version before 2026-10-31.** Today's Flow hosts still run apps built on
 > older SDKs. After 2026-10-31, Flow hosts give an app built on an SDK older than
 > 0.3.6 (all of `@netsapiens/horizon-sdk` 0.2.x and `@netsapiens/flow-sdk`
@@ -39,7 +39,7 @@ says about bundle verification still holds.
    the other `*:listen` capabilities are gone.
 4. **The event bus is not an app API any more.** The host features it carried
    have methods (sending a notification gets its method,
-   `sdk.sendNotification()`, in the release after 0.3.6; see
+   `sdk.sendNotification()`; see
    [Part 4](#part-4--the-event-bus-leaves-the-public-surface)), and your own
    components talk through a module in your bundle.
 5. **New, optional:** call records (`cdrs`), retained streams that outlive a
@@ -59,7 +59,7 @@ report nothing on hosts that serve `sdk.streams`. After that date, an app built
 on an SDK older than 0.3.6 loads but adds nothing to Flow, and a new version
 built on one is rejected at submission.
 
-The order that avoids trouble: rebuild on `@netsapiens/flow-sdk` ^0.3.6,
+The order that avoids trouble: rebuild on `@netsapiens/flow-sdk` ^0.3.7,
 publish, and submit the new version on every server you are registered on,
 well before 2026-10-31.
 
@@ -308,7 +308,7 @@ exported, so code that used it stops compiling. Each use has a replacement:
 | `useRoute(eventBus, …)`, `useRouteFromModule`, `useDynamicExtension`, `useDynamicColumn`, `createRemoteAppSDK`, `new RemoteAppSDK` | Pass `flowContext` instead of the bus                                                                                                                                                                                                                             |
 | `eventBus.emit('my-app:thing', …)` / `.on(…)` between your own components                                                          | A module-level emitter or store in your bundle (below)                                                                                                                                                                                                            |
 | `condition: (context) => Boolean(context.eventBus)` on a widget                                                                    | Test what the widget really needs, e.g. `Boolean(context.user?.username)`                                                                                                                                                                                         |
-| `eventBus.emit('notification:send', …)` to raise a notification                                                                    | `sdk.sendNotification({ title, body?, severity?, link?, id? })`, in **the release after 0.3.6** (see below). The 0.2.x event had already stopped working once hosts scoped the bus, so no existing app depends on it.                                             |
+| `eventBus.emit('notification:send', …)` to raise a notification                                                                    | `sdk.sendNotification({ title, body?, severity?, link?, id? })` (see below). The 0.2.x event had already stopped working once hosts scoped the bus, so no existing app depends on it.                                                                             |
 
 `useSidePanel(context)` calls `context.openSidePanel` on hosts that have it and
 falls back on older ones, so the same call works on both. `context` here is a
@@ -316,7 +316,7 @@ host-rendered component's own context; a page's `flowContext` has no side-panel
 methods, so a page uses `useSidePanel()` or `sdk.openSidePanel()`.
 
 **What each host event on the bus became.** Nothing an app could do over the
-bus is lost. Sending a notification gets its method in the release after 0.3.6:
+bus is lost. Sending a notification has its own method:
 
 | On the bus in 0.2.x                                                      | In 0.3.x                                                                                                                          |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -326,10 +326,10 @@ bus is lost. Sending a notification gets its method in the release after 0.3.6:
 | `side-panel:open`, `side-panel:close`                                    | `useSidePanel(context)` / `context.openSidePanel` in host-rendered components; `useSidePanel()` / `sdk.openSidePanel()` in a page |
 | `call-control:request`                                                   | `sdk.placeCall()`, `hangupCall()` and the mute methods                                                                            |
 | `capability:declare-scopes`                                              | `sdk.declareCapabilityScopes()`                                                                                                   |
-| `notification:send`                                                      | `sdk.sendNotification()` (the release after 0.3.6)                                                                                |
+| `notification:send`                                                      | `sdk.sendNotification()`                                                                                                          |
 | Your own `my-app:*` events                                               | A module in your bundle (below)                                                                                                   |
 
-**Sending a notification** (the release after 0.3.6). `sdk.sendNotification()`
+**Sending a notification.** `sdk.sendNotification()`
 creates a real platform notification for the signed-in user: it shows in the
 notification center, persists, and arrives on `sdk.streams.notifications`.
 
@@ -444,7 +444,7 @@ Unchanged from 0.2.x, and as important as ever:
 
 ## Checklist
 
-- [ ] `@netsapiens/horizon-sdk` removed; `@netsapiens/flow-sdk` ^0.3.6 installed
+- [ ] `@netsapiens/horizon-sdk` removed; `@netsapiens/flow-sdk` ^0.3.7 installed
 - [ ] Every `Horizon*` import is the `Flow*` name; `horizon-verify-bundle` is `flow-verify-bundle`
 - [ ] Your `webpack_module` is unchanged (unless you mean to become a new app)
 - [ ] No `subscribeToCallEvents` / `subscribeToStream`; each feed is an `sdk.streams` method, written plainly
