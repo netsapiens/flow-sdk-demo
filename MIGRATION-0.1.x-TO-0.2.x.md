@@ -3,6 +3,7 @@
 > **Historical.** This guide records the Horizon-era 0.1.x → 0.2.x upgrade and keeps
 > the names of that time. Since 0.3.0 the SDK is **Flow SDK**
 > (`@netsapiens/flow-sdk`, `flowContext`), and this demo is `flow-sdk-demo`.
+> The next step is [MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md).
 
 The single reference for partners maintaining a Horizon extension built against
 `@netsapiens/horizon-sdk` 0.1.x: what changed, why it had to, what you must do, and
