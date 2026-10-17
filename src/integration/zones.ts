@@ -19,6 +19,7 @@ import { CallerInfoWidget } from '../extensions/CallerInfoWidget';
 import ComplianceCheckbox from '../extensions/ComplianceCheckbox';
 import ContactFormBanner from '../extensions/ContactFormBanner';
 import { exportActions } from '../extensions/ExportButton';
+import FormDataInspector from '../extensions/FormDataInspector';
 import { HeaderStatusBadge } from '../extensions/HeaderStatusBadge';
 import { QuickActionButton } from '../extensions/QuickActionButton';
 import { TableToolbarInfo } from '../extensions/TableToolbarInfo';
@@ -125,6 +126,7 @@ const COMPONENTS: Record<
   'demo-caller-info-widget': CallerInfoWidget,
   'demo-contact-form-banner': ContactFormBanner,
   'demo-compliance-checkbox': ComplianceCheckbox,
+  'demo-form-data-inspector': FormDataInspector,
   'demo-active-calls-recording-filter': ActiveCallsRecordingFilter,
   'demo-header-status-badge': HeaderStatusBadge,
   'demo-table-toolbar-info': TableToolbarInfo,
