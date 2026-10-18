@@ -87,9 +87,10 @@ export default function TypographySection() {
           <strong>Try it:</strong> pick another language from the flag in the
           top bar and the right-hand column changes under you, with no reload.
           Then pick <strong>Debug Mode (Keys Only)</strong> from the same menu:
-          every string the platform translates turns into its key, so whatever
-          is still English on this page — headings, prose, these notes — is copy
-          this app wrote for itself.
+          every string the platform translates turns into its key. Anything that
+          does not is the app&rsquo;s own copy — translated from the app&rsquo;s
+          dictionaries where it ships one (this page&rsquo;s header and opening
+          panel), English elsewhere.
         </Alert>
       ) : null}
 
