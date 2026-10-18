@@ -3,34 +3,40 @@
  * `/manage/:domain` outlet and mounted under whichever domain the admin has
  * drilled into (→ `/manage/acme.example.com/crm-sync`).
  *
- * This is the page that proves the domain-scoped contract, so it is worth being
- * precise about what is being demonstrated:
+ * What it demonstrates:
  *
  *   - ONE registration, not one per domain. The app never enumerates domains and
  *     never names one. `:domain` is a token the host fills from the URL; a
  *     Reseller with 400 domains still registers this page exactly once.
  *   - `useManagingDomain()` is the source of truth for which domain the page is
  *     about — NOT `user.domain`, which is the domain the *signed-in admin*
- *     belongs to and never changes as they drill around. Getting these two
- *     confused is the whole reason the hook exists, so the page prints both
- *     side by side.
- *   - It is reactive. Switching domains in the host re-broadcasts
- *     `domain:changed`, the hook re-renders, and the effect below re-fetches —
- *     no remount required, and no page reload.
+ *     belongs to and never changes as they drill around. The page states both.
+ *   - A native list page: `templates.DatagridTemplate` supplies search, filter,
+ *     columns, export, refresh and paging; a row opens the host's side panel
+ *     with that user's CRM record.
  *
- * The work the page does is deliberately domain-shaped: it reads the selected
- * domain's users from the v2 API through `flowContext.api` and reports which
- * of them are linked to the (mock) vendor CRM. Change the domain, and every
- * number on the page changes with it.
+ * The read asks only for the four fields the page shows, so a large domain does
+ * not send every user's whole record.
  *
- * As elsewhere in this demo, a failed or empty live fetch falls back to sample
- * data so the page is never blank while you are looking at it.
+ * ⚠️ KNOWN SDK BUG (flow-sdk 0.3.7): a domain switch made while this page is not
+ * mounted is not seen when it next mounts — `useManagingDomain()` starts from
+ * the snapshot taken at app load. Reported to the SDK; deliberately not worked
+ * around here, so the fix shows when it lands.
+ *
+ * CRM linkage is mock data, and linking or unlinking is kept in page state.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { useFlowContext, useManagingDomain } from '@netsapiens/flow-sdk';
+import type { DatagridAction, DatagridColumn } from '@netsapiens/flow-sdk';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useFlowContext,
+  useManagingDomain,
+  useSidePanel,
+} from '@netsapiens/flow-sdk';
 
+import type { CrmRecord } from '../mocks/crm';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
 import { MOCK_CRM_DIRECTORY } from '../mocks/crm';
+import { CrmRecordPanel } from '../panels/CrmRecordPanel';
 
 /** One row of the sync table: a domain user and their CRM linkage. */
 interface SyncRow {
@@ -38,9 +44,10 @@ interface SyncRow {
   userId: string;
   displayName: string;
   extension: string;
-  /** Present when this user matched a record in the vendor CRM. */
-  crmCompany?: string;
-  source: 'live' | 'sample';
+  /** Present when this user is linked to a CRM account. */
+  record?: CrmRecord;
+  /** For the grid's filter and export: 'Linked' | 'Not linked'. */
+  status: 'Linked' | 'Not linked';
 }
 
 /** The subset of the v2 user record this page reads. */
@@ -51,38 +58,25 @@ interface NetSapiensUser {
   extension?: string;
 }
 
+/** Only what the page shows. */
+const USER_FIELDS = 'user,name-first-name,name-last-name,extension';
+
+/** A seat as fetched, before the CRM linkage is applied. */
+interface Seat {
+  userId: string;
+  displayName: string;
+  extension: string;
+}
+
 /**
- * Sample rows, used when the live fetch fails or the domain has no users. They
- * are labelled `sample` in the UI so a reader is never misled into thinking
- * they are looking at real data for the domain they selected.
+ * Sample seats, used when the live fetch fails or the domain has no users. The
+ * page says "sample data" above the grid so nobody reads them as real.
  */
-const SAMPLE_ROWS: SyncRow[] = [
-  {
-    userId: '1001',
-    displayName: 'Dana Whitfield',
-    extension: '1001',
-    crmCompany: 'Northwind Retail',
-    source: 'sample',
-  },
-  {
-    userId: '1002',
-    displayName: 'Marcus Reyes',
-    extension: '1002',
-    crmCompany: 'Contoso Freight',
-    source: 'sample',
-  },
-  {
-    userId: '1003',
-    displayName: 'Priya Raman',
-    extension: '1003',
-    source: 'sample',
-  },
-  {
-    userId: '1004',
-    displayName: 'Sam Okafor',
-    extension: '1004',
-    source: 'sample',
-  },
+const SAMPLE_SEATS: Seat[] = [
+  { userId: '1001', displayName: 'Dana Whitfield', extension: '1001' },
+  { userId: '1002', displayName: 'Marcus Reyes', extension: '1002' },
+  { userId: '1003', displayName: 'Priya Raman', extension: '1003' },
+  { userId: '1004', displayName: 'Sam Okafor', extension: '1004' },
 ];
 
 /**
@@ -90,34 +84,47 @@ const SAMPLE_ROWS: SyncRow[] = [
  * each department, each call queue — which hold scope but are not people. They
  * come back with a non-numeric `extension` (`site`, `department`, `domain`), so
  * that is the discriminator: a real seat always has a numeric extension.
- * Without this the page lists "site Site · ext site" as a person to sync.
  */
 function isRealSeat(extension: string): boolean {
   return /^\d+$/.test(extension);
 }
 
+const CRM_RECORDS: CrmRecord[] = Object.values(MOCK_CRM_DIRECTORY);
+
 /**
- * Fake the CRM linkage. A real integration would query the vendor by email or
- * phone; the demo hashes the extension into the mock directory so the same user
- * always resolves the same way, and roughly half of them match.
+ * Fake the CRM account for a seat. A real integration would query the vendor
+ * by email or phone; the demo hashes the extension into the mock directory so
+ * the same user always resolves the same way.
  */
-function crmCompanyFor(extension: string): string | undefined {
-  const companies = Object.values(MOCK_CRM_DIRECTORY).map((r) => r.company);
-  if (companies.length === 0) return undefined;
+function recordFor(extension: string): CrmRecord | undefined {
+  if (CRM_RECORDS.length === 0) return undefined;
   const digits = Number(extension.replace(/\D/g, '')) || 0;
-  if (digits % 2 === 1) return undefined;
-  return companies[digits % companies.length];
+  return CRM_RECORDS[digits % CRM_RECORDS.length];
 }
+
+/** Roughly half the seats start linked, the same half every time. */
+function linkedByDefault(extension: string): boolean {
+  const digits = Number(extension.replace(/\D/g, '')) || 0;
+  return digits % 2 === 0;
+}
+
+const getRowId = (row: SyncRow) => row.userId;
+const PAGE_SIZE_OPTIONS = [15, 25, 50, 100];
 
 export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
   // The domain the admin drilled INTO. Reactive — it changes under the page.
   const { managing } = useManagingDomain();
   // `user.domain` is the admin's OWN domain and is shown only for contrast.
   const { api, ui, user } = useFlowContext();
+  const { open } = useSidePanel();
 
-  const [rows, setRows] = useState<SyncRow[]>(SAMPLE_ROWS);
+  const [seats, setSeats] = useState<Seat[]>([]);
+  const [isLive, setIsLive] = useState(false);
   const [loading, setLoading] = useState(false);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  /** Link/unlink choices made on this page, by user id. */
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     // `undefined` means the host is too old to report a managed domain;
@@ -127,38 +134,34 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
     let cancelled = false;
     setLoading(true);
     setLiveError(null);
+    setOverrides({});
 
     api
-      .get<NetSapiensUser[]>(`/domains/${managing}/users`)
+      .get<NetSapiensUser[]>(`/domains/${managing}/users`, {
+        fields: USER_FIELDS,
+      })
       .then((users) => {
         if (cancelled) return;
-        const mapped = (users ?? [])
-          .map((u): SyncRow | null => {
-            const userId = u.user;
-            if (!userId) return null;
-            const extension = u.extension ?? userId;
-            if (!isRealSeat(extension)) return null;
-            const name = [u['name-first-name'], u['name-last-name']]
-              .filter(Boolean)
-              .join(' ');
-            return {
-              userId,
-              displayName: name || userId,
-              extension,
-              crmCompany: crmCompanyFor(extension),
-              source: 'live',
-            };
-          })
-          .filter((r): r is SyncRow => r !== null);
-
+        const mapped = (users ?? []).flatMap((u): Seat[] => {
+          const userId = u.user;
+          if (!userId) return [];
+          const extension = u.extension ?? userId;
+          if (!isRealSeat(extension)) return [];
+          const name = [u['name-first-name'], u['name-last-name']]
+            .filter(Boolean)
+            .join(' ');
+          return [{ userId, displayName: name || userId, extension }];
+        });
         // An empty domain is a legitimate answer, but a blank page reads as a
         // failure — fall back so the demo always shows the shape of the data.
-        setRows(mapped.length > 0 ? mapped : SAMPLE_ROWS);
+        setIsLive(mapped.length > 0);
+        setSeats(mapped.length > 0 ? mapped : SAMPLE_SEATS);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
         setLiveError(error instanceof Error ? error.message : String(error));
-        setRows(SAMPLE_ROWS);
+        setIsLive(false);
+        setSeats(SAMPLE_SEATS);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -167,15 +170,114 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
     return () => {
       cancelled = true;
     };
-  }, [managing, api]);
+  }, [managing, api, reloadKey]);
 
-  const linked = useMemo(() => rows.filter((r) => r.crmCompany).length, [rows]);
-  const isLive = rows.some((r) => r.source === 'live');
+  const rows = useMemo<SyncRow[]>(
+    () =>
+      seats.map((seat) => {
+        const linked =
+          overrides[seat.userId] ?? linkedByDefault(seat.extension);
+        return {
+          ...seat,
+          record: linked ? recordFor(seat.extension) : undefined,
+          status: linked ? 'Linked' : 'Not linked',
+        };
+      }),
+    [seats, overrides],
+  );
+  const linkedCount = rows.filter((r) => r.record).length;
 
-  const { PageTemplate } = ui?.templates || {};
-  const { Paper, Stack, Typography, Chip, Alert } = ui || {};
+  const toggleLink = useCallback((row: SyncRow) => {
+    setOverrides((prev) => ({ ...prev, [row.userId]: !row.record }));
+  }, []);
 
-  if (!PageTemplate || !Paper || !Stack || !Typography) {
+  const openRecord = useCallback(
+    (row: SyncRow) =>
+      open({
+        title: 'CRM record',
+        subtitle: row.displayName,
+        width: 'sm',
+        icon: 'mdi:card-account-details-outline',
+        component: (props) => (
+          <CrmRecordPanel
+            {...props}
+            row={row}
+            onToggleLink={() => toggleLink(row)}
+          />
+        ),
+      }),
+    [open, toggleLink],
+  );
+
+  const { Chip } = ui ?? {};
+  const columns = useMemo<DatagridColumn<SyncRow>[]>(
+    () => [
+      { field: 'displayName', headerName: 'Name', flex: 1, minWidth: 180 },
+      { field: 'extension', headerName: 'Extension', width: 120 },
+      {
+        field: 'status',
+        headerName: 'CRM',
+        type: 'singleSelect',
+        valueOptions: ['Linked', 'Not linked'],
+        width: 220,
+        // Export and filtering read the plain value; the cell shows the account.
+        renderCell: ({ row }: { row: SyncRow }) =>
+          Chip ? (
+            <Chip
+              size='small'
+              label={row.record?.company ?? 'Not linked'}
+              color={row.record ? 'primary' : 'default'}
+              variant={row.record ? 'filled' : 'outlined'}
+            />
+          ) : (
+            (row.record?.company ?? 'Not linked')
+          ),
+      },
+    ],
+    [Chip],
+  );
+
+  const actions = useMemo<DatagridAction<SyncRow>[]>(
+    () => [
+      {
+        label: 'View CRM record',
+        icon: 'mdi:card-account-details-outline',
+        onClick: openRecord,
+      },
+      {
+        label: 'Link or unlink',
+        icon: 'mdi:link-variant',
+        onClick: toggleLink,
+      },
+    ],
+    [openRecord, toggleLink],
+  );
+
+  const handleRefresh = useCallback(() => setReloadKey((k) => k + 1), []);
+  const toolbar = useMemo(
+    () => ({
+      enableSearch: true,
+      searchPlaceholder: 'Search name or extension…',
+      enableFilter: true,
+      enableColumns: true,
+      enableExport: true,
+      exportFilename: `crm-sync-${managing ?? 'domain'}`,
+      enableRefresh: true,
+      onRefresh: handleRefresh,
+      refreshing: loading,
+    }),
+    [managing, handleRefresh, loading],
+  );
+
+  const handleRowClick = useCallback(
+    ({ row }: { row: SyncRow }) => openRecord(row),
+    [openRecord],
+  );
+
+  const { PageTemplate, DatagridTemplate } = ui?.templates ?? {};
+  const { Alert } = ui ?? {};
+
+  if (!PageTemplate || !DatagridTemplate) {
     return (
       <div {...marker} style={{ padding: 24 }}>
         UI components not available
@@ -185,97 +287,44 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
 
   return (
     <PageTemplate
+      layout='fill'
       {...marker}
       title='CRM Sync'
+      subtitle={`${linkedCount} of ${rows.length} users linked to the CRM`}
       breadcrumbs={[
         { label: 'Manage', url: '/manage' },
         { label: managing ?? 'Domain' },
         { label: 'CRM Sync' },
       ]}
+      headerStatus={
+        Chip ? (
+          <Chip
+            size='small'
+            label={isLive ? 'live data' : 'sample data'}
+            color={isLive ? 'success' : 'default'}
+          />
+        ) : undefined
+      }
     >
-      <Stack spacing={3}>
-        {/*
-          The contract, stated on screen. Anyone evaluating the SDK can read
-          this pane and see that the page followed the domain they picked
-          without the app ever naming it.
-        */}
-        <Paper rounded sx={{ p: 3 }}>
-          <Stack spacing={1}>
-            <Typography variant='h6'>Domain being managed</Typography>
-            <Stack direction='row' spacing={1} alignItems='center'>
-              <Typography variant='body1'>
-                <strong>{managing ?? 'None selected'}</strong>
-              </Typography>
-              {Chip ? (
-                <Chip
-                  size='small'
-                  label={isLive ? 'live data' : 'sample data'}
-                  color={isLive ? 'success' : 'default'}
-                />
-              ) : null}
-            </Stack>
-            <Typography variant='body2' color='text.secondary'>
-              Signed in against {user.domain} — this page is scoped to the
-              domain selected above, not to the account you signed in with.
-              Switch domains and these numbers follow.
-            </Typography>
-            <Typography variant='body2' color='text.secondary'>
-              Registered once as <code>/manage/:domain/crm-sync</code>.
-            </Typography>
-          </Stack>
-        </Paper>
+      {Alert ? (
+        <Alert severity={liveError ? 'warning' : 'info'}>
+          {liveError
+            ? `Could not read users for ${managing}: ${liveError}. Showing sample data instead.`
+            : `Users of ${managing ?? 'the selected domain'}, the domain being managed. You signed in against ${user.domain}; this page follows the domain you pick, not your own. Click a row for its CRM record.`}
+        </Alert>
+      ) : null}
 
-        {liveError && Alert ? (
-          <Alert severity='warning'>
-            Could not read users for {managing}: {liveError}. Showing sample
-            data instead.
-          </Alert>
-        ) : null}
-
-        <Paper rounded sx={{ p: 3 }}>
-          <Stack spacing={2}>
-            <Stack
-              direction='row'
-              spacing={2}
-              alignItems='center'
-              justifyContent='space-between'
-            >
-              <Typography variant='h6'>CRM linkage</Typography>
-              <Typography variant='body2' color='text.secondary'>
-                {loading
-                  ? 'Loading…'
-                  : `${linked} of ${rows.length} users linked`}
-              </Typography>
-            </Stack>
-
-            {rows.map((row) => (
-              <Stack
-                key={row.userId}
-                direction='row'
-                spacing={2}
-                alignItems='center'
-                justifyContent='space-between'
-              >
-                <Typography variant='body2'>
-                  {row.displayName} · ext {row.extension}
-                </Typography>
-                {Chip ? (
-                  <Chip
-                    size='small'
-                    label={row.crmCompany ?? 'Not linked'}
-                    color={row.crmCompany ? 'primary' : 'default'}
-                    variant={row.crmCompany ? 'filled' : 'outlined'}
-                  />
-                ) : (
-                  <Typography variant='body2'>
-                    {row.crmCompany ?? 'Not linked'}
-                  </Typography>
-                )}
-              </Stack>
-            ))}
-          </Stack>
-        </Paper>
-      </Stack>
+      <DatagridTemplate
+        data={rows}
+        getRowId={getRowId}
+        columns={columns}
+        actions={actions}
+        toolbar={toolbar}
+        loading={loading}
+        onRowClick={handleRowClick}
+        defaultPageSize={25}
+        pageSizeOptions={PAGE_SIZE_OPTIONS}
+      />
     </PageTemplate>
   );
 }
