@@ -75,8 +75,8 @@ dynamic table column**, **9 dashboard widgets**, **4 softphone streams** and **8
 retained live feeds** (`sdk.streams`), an **on-demand side panel**, and a
 **remote-auth handshake** with a backend.
 
-> **Building a data table?** Start with the **Call Recordings** page
-> (`pages/CallRecordingsPage.tsx`) — a complete list page built the way a native
+> **Building a data table?** Start with the **Recording QA Review** page
+> (`pages/RecordingQaReviewPage.tsx`) — a complete list page built the way a native
 > Flow page is built, and the thing to copy. Then read
 > **[DATAGRID.md](./DATAGRID.md)** for the page-layout anatomy and the `height`
 > rule that otherwise leaves your pagination footer below the fold. The same guide
@@ -87,15 +87,15 @@ retained live feeds** (`sdk.streams`), an **on-demand side panel**, and a
 
 ### Full-page routes — `sdk.registerRoute()`
 
-| Page               | Menu location                  | Notes                                                                                                                                                                                                                                                                                                                     |
-| ------------------ | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Flow SDK Demo      | Apps                           | The overview/walkthrough page (`pages/DemoPage.tsx`).                                                                                                                                                                                                                                                                     |
-| Component Showcase | Apps                           | Reference for every shared MUI Aurora component (`pages/ComponentShowcasePage.tsx`).                                                                                                                                                                                                                                      |
-| Live Operations    | Apps                           | **The `sdk.streams` example.** A live wallboard of queues, agents, domain calls, call records, presence and phones, each card showing its stream's status — including the host's refusal for users whose scope does not allow a feed (`pages/liveOperations/LiveOperationsPage.tsx`).                                     |
-| Example CRM        | Apps                           | A vendor dashboard page built on `templates.DashboardTemplate`: the host's grid, card frames and range control on a page the app owns (`pages/VendorDashboardPage.tsx`).                                                                                                                                                  |
-| CRM Integration    | Manage (after _Call Logs_)     | Lists the user's calls from a **live** NetSapiens v2 API call, matched to their CRM record — registered into the Manage menu to show the Manage tree can be extended, not just Apps (`pages/CrmIntegrationPage.tsx`).                                                                                                     |
-| CRM Sync           | Manage, **inside a domain**    | **Domain-scoped.** Registered once at `/manage/:domain`, so it mounts under whichever domain an admin has drilled into and reads that domain with `useManagingDomain()` — one registration, every domain (`pages/DomainCrmSyncPage.tsx`).                                                                                 |
-| Call Recordings    | My Account (after _Call Logs_) | **The reference list page.** Everything — search, filter, columns, export, refresh, checkbox selection, master-detail and the pagination footer — comes from `DatagridTemplate`; the primary action sits in `PageTemplate`'s header `actions`. Shows the /home tree can be extended too (`pages/CallRecordingsPage.tsx`). |
+| Page                | Menu location                  | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Flow SDK Demo       | Apps                           | The overview/walkthrough page (`pages/DemoPage.tsx`).                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Component Showcase  | Apps                           | Reference for every shared MUI Aurora component (`pages/ComponentShowcasePage.tsx`).                                                                                                                                                                                                                                                                                                                                                                                             |
+| Live Operations     | Apps                           | **The `sdk.streams` example.** A live wallboard of queues, agents, domain calls, call records, presence and phones, each card showing its stream's status — including the host's refusal for users whose scope does not allow a feed (`pages/liveOperations/LiveOperationsPage.tsx`).                                                                                                                                                                                            |
+| Example CRM         | Apps                           | A vendor dashboard page built on `templates.DashboardTemplate`: the host's grid, card frames and range control on a page the app owns (`pages/VendorDashboardPage.tsx`).                                                                                                                                                                                                                                                                                                         |
+| CRM Integration     | Manage (after _Call Logs_)     | Lists the user's calls from a **live** NetSapiens v2 API call, matched to their CRM record — registered into the Manage menu to show the Manage tree can be extended, not just Apps (`pages/CrmIntegrationPage.tsx`).                                                                                                                                                                                                                                                            |
+| CRM Sync            | Manage, **inside a domain**    | **Domain-scoped.** Registered once at `/manage/:domain`, so it mounts under whichever domain an admin has drilled into and reads that domain with `useManagingDomain()` — one registration, every domain (`pages/DomainCrmSyncPage.tsx`).                                                                                                                                                                                                                                        |
+| Recording QA Review | My Account (after _Call Logs_) | **The reference list page**, over a mock QA review queue (agent, reviewer, score, flags) — data the host does not have; playback stays in Call Logs. Everything — search, filter, columns, export, refresh, checkbox selection, master-detail and the pagination footer — comes from `DatagridTemplate`; the primary action ("Assign N selected to me") sits in `PageTemplate`'s header `actions`. Shows the /home tree can be extended too (`pages/RecordingQaReviewPage.tsx`). |
 
 #### Choosing a menu — `parentPath`
 
@@ -116,16 +116,16 @@ section id is `myaccount`, and its URL prefix is `/home` — three different
 strings for the same tree. Use `/home`; `/myaccount` is not a route and will
 render a menu entry pointing at a URL that 404s.
 
-Registering Call Recordings under `/home` is what puts it in My Account:
+Registering Recording QA Review under `/home` is what puts it in My Account:
 
 ```ts
 sdk.registerRoute({
-  id: 'ucaas-call-recordings',
-  parentPath: '/home', // → My Account, at /home/call-recordings
-  path: 'call-recordings',
-  label: 'Call Recordings',
+  id: 'ucaas-recording-qa-review',
+  parentPath: '/home', // → My Account, at /home/recording-qa-review
+  path: 'recording-qa-review',
+  label: 'Recording QA Review',
   placement: { after: 'call-logs' },
-  component: CallRecordingsPage,
+  component: RecordingQaReviewPage,
 });
 ```
 
@@ -134,7 +134,7 @@ segment at a time and every segment must itself be a registered dynamic route,
 so nesting under a host page does not work even when that page exists:
 
 ```ts
-parentPath: '/home'; // ✅ → /home/call-recordings
+parentPath: '/home'; // ✅ → /home/recording-qa-review
 parentPath: '/home/settings'; // ❌ 'settings' is a static host page, not a
 //    dynamic route — the URL cannot resolve
 ```
@@ -151,7 +151,7 @@ example above `after: 'call-logs'` resolves the My Account item whose name is
 
 > **Host version:** menu entries for `/home` require the host-side fix that
 > maps the `myaccount` section to the `/home` prefix. On earlier hosts the route
-> still resolves — `/home/call-recordings` loads if entered directly — but no
+> still resolves — `/home/recording-qa-review` loads if entered directly — but no
 > menu entry appears, and nothing is logged to say why. `/apps`, `/manage` and
 > `/platform` are unaffected.
 

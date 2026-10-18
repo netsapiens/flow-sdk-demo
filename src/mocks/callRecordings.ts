@@ -1,5 +1,9 @@
 /**
- * Sample rows for the Call Recordings page (`pages/CallRecordingsPage.tsx`).
+ * Sample call recordings — the source the Recording QA review queue
+ * (`recordingQaReviews.ts`) and the "Recordings processed" dashboard stat
+ * (`widgets/RecordedCallsStat.tsx`) are both built from. No page lists these
+ * directly any more: Call Logs already plays and downloads recordings, so a
+ * recordings list here would only duplicate the host.
  *
  * Generated deterministically from an index rather than written out row by row:
  * the page needs more rows than one page holds so the pagination footer actually

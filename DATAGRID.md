@@ -181,7 +181,7 @@ instead — see below.
 `PageTemplate` and leave `height` unset:
 
 ```tsx
-<PageTemplate title='Call recordings' layout='fill'>
+<PageTemplate title='Recording QA review' layout='fill'>
   <Alert severity='info'>…</Alert> {/* takes its height first */}
   <DatagridTemplate rows={rows} columns={columns} /> {/* absorbs the rest */}
 </PageTemplate>
@@ -214,7 +214,8 @@ the bottom:
 ```
 
 This one is easy to miss because it looks fine until you notice the gap under the
-grid — this repository's own call-recordings page shipped with the Stack, hidden
+grid — this repository's own list page (then Call Recordings, now Recording QA
+review) shipped with the Stack, hidden
 for a while by the hand-tuned `height` it used to pass. If you must have a wrapper
 (a split view, say), give it `sx={{ flex: 1, minHeight: 0 }}` so it fills and lets
 the grid fill in turn.
@@ -223,7 +224,7 @@ This used to default to `calc(100vh - 377px)`, and the advice here was to
 "increase the offset to match" whatever you rendered above the grid. That advice
 produced values like `calc(100vh - 470px)`: correct on the day it was written, and
 wrong as soon as the banner above it changed. This page's own grid was one of them
-— see `src/pages/CallRecordingsPage.tsx`, which now just sets `layout='fill'`.
+— see `src/pages/RecordingQaReviewPage.tsx`, which now just sets `layout='fill'`.
 
 Pass an explicit `height` only for a grid that is genuinely a fixed size, such as
 a dashboard card or one pane of a split view:
