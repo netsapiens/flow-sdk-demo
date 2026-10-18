@@ -22,7 +22,7 @@ matches Flow in light and dark mode.
 > **[MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md)**: the package
 > rename, `sdk.streams` in place of `subscribeToCallEvents` / `subscribeToStream`,
 > grants read from your bundle, retained streams, and the event bus leaving the
-> public surface. **Rebuild on `@netsapiens/flow-sdk` ^0.3.7 (the latest 0.3.x)
+> public surface. **Rebuild on `@netsapiens/flow-sdk` ^0.3.8 (the latest 0.3.x)
 > and deploy before 2026-10-31:** after that date an app built on an SDK older
 > than 0.3.6 loads but adds nothing to Flow, and a new version built on one is
 > rejected at submission.
@@ -46,11 +46,17 @@ matches Flow in light and dark mode.
 ## What's new in flow-sdk 0.3.x
 
 The SDK was renamed and gained live streaming in 0.3.x. This demo runs on
-**`@netsapiens/flow-sdk` ^0.3.7** and shows each change working. The SDK's own
+**`@netsapiens/flow-sdk` ^0.3.8** and shows each change working. The SDK's own
 README (its **Migration** section, `node_modules/@netsapiens/flow-sdk/README.md`)
 and `STREAMS.md` are the references, and
 [MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md) walks an app through
 the move step by step. This is where to see each change in the demo.
+
+**0.3.8** fixes pages that mount after a change: `theme`, `locale` and the
+managed domain (`useManagingDomain()`) used to start from the context snapshot
+taken at app load, so a page opened after a switch made elsewhere came up on the
+old value. They now start from the host's current state. No app code changes;
+upgrade and the CRM Sync page follows a domain switch made on another page.
 
 | Change                                                                                                                                                                                                                                                               | What to do                                                                                                                                                                                                                                                                                                                                                                                                              | Where the demo does it                                                                                                                                          |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -61,7 +67,7 @@ the move step by step. This is where to see each change in the demo.
 | **No starting snapshot for some feeds**: queue stats, agents, presence, devices and call records send changes only.                                                                                                                                                  | Read the current state from the API once, then let the stream keep it current.                                                                                                                                                                                                                                                                                                                                          | `liveSeed.ts` (queues, agents, phones from `/domains/{managing ?? '~'}/…`).                                                                                     |
 | **The event bus left the public surface**: no `eventBus` on `FlowContext` or `ExtensionContext`, and no `FlowEventBus` type.                                                                                                                                         | Side panel: `useSidePanel(context)` or `context.openSidePanel?.(config)` in host-rendered components; `useSidePanel()` or `sdk.openSidePanel(config)` in a page. Theme and managed domain: `useTheme(context)` / `useManagingDomain(context)`, or `context.theme` / `context.managing`. Hooks and `createRemoteAppSDK` take `flowContext`. Messages between your own components: a module-level emitter in your bundle. | Side panels in `OpenInCrmAction`, `TopbarCrmButton`, `LiveCallsWidget`, `PartnerLinksWidget`; the emitter is `onCallChanges()` in `services/callEnrichment.ts`. |
 
-**Rebuild on `@netsapiens/flow-sdk` ^0.3.7 (the latest 0.3.x) and deploy the
+**Rebuild on `@netsapiens/flow-sdk` ^0.3.8 (the latest 0.3.x) and deploy the
 new version before 2026-10-31.** Flow hosts still run apps built on older SDKs
 today. After 2026-10-31, Flow hosts give an app built on an SDK older than 0.3.6
 (`horizon-sdk` 0.2.x, `flow-sdk` 0.3.0–0.3.5) no event bus: it loads but adds
