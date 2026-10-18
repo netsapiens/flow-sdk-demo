@@ -8,17 +8,11 @@
   "version": "3.0.8",
   "extensions": [
     {
-      "id": "demo-export-button",
+      "id": "demo-analyze-calls",
       "zone": "page-header-actions",
-      "routes": [
-        "/manage/call-logs",
-        "/manage/*/call-logs",
-        "/manage/*/contacts",
-        "/manage/*/devices/registrations",
-        "/manage/*/users"
-      ],
+      "routes": ["/manage/call-logs", "/manage/*/call-logs"],
       "priority": 10,
-      "testId": "sdk-demo-ext-export-button"
+      "testId": "sdk-demo-ext-analyze-calls"
     },
     {
       "id": "demo-analytics-widget",

@@ -49,6 +49,7 @@ import {
 
 import type { ZoneMarkerProps } from './integration/withZoneTestId';
 import { CrmStatusCell } from './columns/CrmStatusColumn';
+import { appSdk } from './integration/appSdk';
 import { withZoneTestId } from './integration/withZoneTestId';
 import {
   columnTestId,
@@ -147,6 +148,8 @@ export default function App(flowContext: FlowContext) {
   // place. The SDK derives the kebab app id ('flow-extension-demo') from it for
   // registry attribution.
   const { sdk, user, theme } = useRemoteApp(flowContext, __MF_NAME__);
+  // For declared actions, which get no SDK handle (integration/appSdk.ts).
+  appSdk.current = sdk;
 
   // The page wrappers below are memoized with empty deps so component identity
   // stays stable across host re-renders, which freezes `flowContext` at first
