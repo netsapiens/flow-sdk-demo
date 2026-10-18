@@ -27,8 +27,9 @@ const VENDOR_CRM_BASE_URL = 'https://app.example-crm.example';
 /**
  * Resolve a caller from the CRM, logging the request/response.
  *
- * In production this is a real authenticated request to the vendor CRM —
- * see the `fetchCrmRecord` stub in `pages/CrmIntegrationPage.tsx`. Here it
+ * In production this is a real authenticated request to the vendor CRM, with a
+ * token from `auth.requestRemoteAuth` — the handshake sketched in the header of
+ * `pages/CrmIntegrationPage.tsx` and run live on the Remote Auth tab. Here it
  * resolves from the mock directory, but we log the GET it *would* make (with the
  * remoteAuth-brokered token) and the record it returns, so the third-party CRM
  * call behind the caller card is visible in the console on each incoming call.

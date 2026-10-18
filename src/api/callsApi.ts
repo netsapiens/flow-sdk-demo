@@ -1,5 +1,5 @@
 /**
- * Recent-calls API helper for the CRM Integration page.
+ * Recent-calls API helper. No page calls it today — see `api/README.md`.
  *
  * Fetches the signed-in user's recent call detail records (CDRs) from the
  * NetSapiens v2 API through the SDK's authenticated `flowContext.api` proxy.

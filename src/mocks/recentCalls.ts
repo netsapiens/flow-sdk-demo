@@ -1,11 +1,12 @@
 /**
- * Sample recent-call fixtures for the CRM Integration page.
+ * Sample recent-call fixtures, and the `RecentCall` shape `api/callsApi.ts`
+ * normalizes the v2 CDR feed into.
  *
- * Each call's `party` is keyed to the shared CRM directory (`mocks/crm.ts`) so
- * the page's "matched CRM record" pane resolves a record for most rows — and one
- * deliberately-unmatched number shows the no-match state. The CRM Integration
- * page prepends the signed-in user's *live* calls (fetched via the API proxy)
- * ahead of these, falling back to this set so the page is never empty.
+ * Each call's `party` is keyed to the shared CRM directory (`mocks/crm.ts`) so a
+ * CRM lookup resolves a record for most rows — and one deliberately-unmatched
+ * number shows the no-match state. The CRM Integration page used to list these
+ * beside the user's live calls; it no longer does (that repeated Call Logs), so
+ * nothing renders them today.
  */
 
 export interface RecentCall {

@@ -1,172 +1,124 @@
 /**
  * CRM Integration — a full page registered into the host's Manage menu by this
  * remote app (parentPath '/manage', placed after Call Logs), proving the Manage
- * tree can be extended, not just /apps. It does something the host can't do
- * natively: surface a third-party CRM next to the user's NetSapiens telephony
- * data.
+ * tree can be extended, not just /apps.
  *
- *   - apiProxy  — the recent-call list is fetched live from the NetSapiens v2
- *                 API through flowContext.api; credentials never reach this
- *                 remote app.
- *   - CRM match — selecting a call resolves the caller in the (mock) CRM — the
- *                 same directory that powers the CallerInfoWidget — so the page
- *                 reuses one source of truth.
+ * It is the PLATFORM-level CRM page: the connection itself, and the settings
+ * that belong to it. Three things a reader should be able to answer here, and
+ * nowhere else in the demo:
  *
- * CRM data is mock for now. Authenticating to a real CRM backend on behalf of
- * the Flow user is the remoteAuth flow — demonstrated standalone on the
- * "Remote Auth" tab — and can gate this page's CRM pane later.
+ *   - Is the CRM connected, as whom, with which scopes, and when did it last
+ *     sync?
+ *   - Which domains sync with it? (Each row opens that domain's CRM Sync page.)
+ *   - How do Flow fields map onto CRM fields?
  *
- * As with the rest of the demo, the live call falls back to sample data so the
- * page is never empty.
+ * What it deliberately is NOT:
+ *
+ *   - Not a call list. It used to list the user's recent calls next to their
+ *     CRM record, which repeated the host's own Call Logs page. The per-call
+ *     CRM view now lives where the calls already are: the "CRM Matched" figure
+ *     the Call Logs analytics widget draws under the host's grid.
+ *   - Not the domain view. `DomainCrmSyncPage` is registered under
+ *     `/manage/:domain` and reads the managed domain with `useManagingDomain()`;
+ *     it owns "which users on THIS domain are linked". This page sits at plain
+ *     `/manage`, is the same for everyone, and never reads `managing`.
+ *
+ * Everything on the page is sample data (`mocks/crmConnection.ts`) and says so
+ * up front. A real integration would establish the connection with the SDK's
+ * remoteAuth flow and read its state from the vendor backend:
+ *
+ *   const token =
+ *     auth.getRemoteAuthToken('example-crm') ??
+ *     (await auth.requestRemoteAuth(
+ *       { vendorId: 'example-crm', scopes: ['contacts:read'] },
+ *       { timeout: 60000 },
+ *     ));
+ *   const res = await fetch(`${VENDOR_API}/connection`, {
+ *     headers: { Authorization: `${token.tokenType ?? 'Bearer'} ${token.accessToken}` },
+ *   });
+ *
+ * No callbackUrl in the request: where the webhook goes is registration data,
+ * set by an administrator in Registered Apps. Flow credentials never reach this
+ * remote — only the vendor token does.
  */
-import type { ComponentType } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useMemo } from 'react';
 import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
-import type { RecentCall } from '../mocks/recentCalls';
-import { fetchRecentCalls } from '../api/callsApi';
+import type { DomainSyncRow } from '../mocks/crmConnection';
+import {
+  CONNECTION_STATE,
+  CRM_INTEGRATION_COPY as COPY,
+  DOMAIN_HEADINGS,
+  DOMAIN_SYNC_STATE,
+  MAPPING_DIRECTION,
+  MAPPING_HEADINGS,
+} from '../content/crmIntegrationContent';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
-import { lookupCrmRecord, normalizePhoneNumber } from '../mocks/crm';
-import { formatDuration, SAMPLE_RECENT_CALLS } from '../mocks/recentCalls';
-
-const VENDOR_NAME = 'Example CRM';
-/**
- * Where the vendor CRM lives. A real integration would deep-link to the matched
- * contact in your CRM; this demo opens an illustrative per-contact URL.
- */
-const VENDOR_CRM_BASE_URL = 'https://app.example-crm.example';
-
-/**
- * REAL CRM FETCH (stubbed) — how the "Matched CRM record" pane would be filled
- * from a live CRM instead of the mock directory.
- *
- * The demo resolves records from a static fixture (`lookupCrmRecord`). In a real
- * integration you'd authenticate to the vendor CRM on the Flow user's behalf
- * via the SDK's remoteAuth flow (demonstrated standalone on the "Remote Auth"
- * tab), then call the vendor API with the brokered token. Flow credentials
- * never reach this remote app — only the vendor token does.
- *
- * Uncomment and wire `selectedRecord` to this (in an effect, keyed on the
- * selected call's party) once a vendor backend + callbackUrl exist:
- *
- *   const VENDOR_ID = 'example-crm';
- *
- *   async function fetchCrmRecord(
- *     auth: ReturnType<typeof useFlowContext>['auth'],
- *     phoneNumber: string,
- *   ): Promise<CrmRecord | undefined> {
- *     // 1. Reuse a session-cached vendor token, or broker a new handshake.
- *     //    requestRemoteAuth resolves only after your backend mints the token
- *     //    from the platform's signed, single-use code (see Remote Auth tab).
- *     let token = auth.getRemoteAuthToken(VENDOR_ID);
- *     if (!token) {
- *       token = await auth.requestRemoteAuth(
- *         {
- *           vendorId: VENDOR_ID,
- *           // No callbackUrl: where the webhook goes is registration data,
- *           // set by an administrator in Registered Apps.
- *           scopes: ['contacts:read'],
- *         },
- *         { timeout: 60000 },
- *       );
- *     }
- *
- *     // 2. Call the vendor CRM with the brokered token (RemoteAuthResponse:
- *     //    { vendorId, accessToken, tokenType?, expiresAt?, refreshToken?, ... }).
- *     const res = await fetch(
- *       `${VENDOR_CRM_BASE_URL}/api/contacts/lookup?phone=${encodeURIComponent(phoneNumber)}`,
- *       {
- *         headers: {
- *           Authorization: `${token.tokenType ?? 'Bearer'} ${token.accessToken}`,
- *         },
- *       },
- *     );
- *     if (!res.ok) return undefined; // 404 -> no match -> offer to create contact
- *
- *     // 3. Map the vendor's payload into the card's CrmRecord shape.
- *     const c = await res.json();
- *     return {
- *       name: c.full_name,
- *       company: c.account?.name ?? '',
- *       lastContact: c.last_activity_at ?? '—',
- *       notes: c.notes ?? '',
- *       callCount: c.call_count ?? 0,
- *     };
- *   }
- */
-
-/** How the live CDR fetch resolved — drives the apiProxy status banner. */
-type LiveStatus = 'loading' | 'live' | 'empty' | 'error';
+import {
+  SAMPLE_CONNECTION,
+  SAMPLE_DOMAIN_SYNC,
+  SAMPLE_FIELD_MAPPINGS,
+} from '../mocks/crmConnection';
 
 export default function CrmIntegrationPage({ ...marker }: ZoneMarkerProps) {
   const flowContext = useFlowContext();
   const { t } = useLocale();
-  const { user, api } = flowContext;
+  const { user, navigate } = flowContext;
 
-  // apiProxy: the signed-in user's recent calls from the NetSapiens v2 API.
-  const [liveCalls, setLiveCalls] = useState<RecentCall[]>([]);
-  const [liveStatus, setLiveStatus] = useState<LiveStatus>('loading');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // The deep-link the "Open in Example CRM" button reveals (demo doesn't navigate).
-  const [deepLink, setDeepLink] = useState<string | null>(null);
-
-  useEffect(() => {
-    const userId = user?.extension;
-    const domain = user?.domain;
-    if (!api || !userId || !domain) {
-      setLiveStatus('error');
-      return;
+  // The signed-in user's own domain leads the table, so at least one "Open"
+  // link lands on a domain this server actually has. Its sync state is sample
+  // data like the rest; only the name is real.
+  const domains = useMemo<DomainSyncRow[]>(() => {
+    const own = user?.domain;
+    if (!own || SAMPLE_DOMAIN_SYNC.some((d) => d.domain === own)) {
+      return [...SAMPLE_DOMAIN_SYNC];
     }
-    let cancelled = false;
-    setLiveStatus('loading');
-    fetchRecentCalls(domain, userId, api)
-      .then((calls) => {
-        if (cancelled) return;
-        setLiveCalls(calls);
-        setLiveStatus(calls.length > 0 ? 'live' : 'empty');
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        console.warn(
-          '[Demo App] Live call fetch failed — showing sample data.',
-          err,
-        );
-        setLiveStatus('error');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [api, user?.extension, user?.domain]);
+    return [
+      {
+        domain: own,
+        state: 'syncing',
+        linkedUsers: 18,
+        totalUsers: 21,
+        lastSync: SAMPLE_CONNECTION.lastSync,
+      },
+      ...SAMPLE_DOMAIN_SYNC,
+    ];
+  }, [user?.domain]);
 
-  // Live calls first, then the bundled sample set.
-  const allCalls = useMemo<RecentCall[]>(
-    () => [...liveCalls, ...SAMPLE_RECENT_CALLS],
-    [liveCalls],
-  );
-
-  // Default the selection to the first call once the list is known.
-  useEffect(() => {
-    if (!selectedId && allCalls.length) setSelectedId(allCalls[0].id);
-  }, [allCalls, selectedId]);
-
-  // Hide any revealed deep-link when the selected call changes.
-  useEffect(() => {
-    setDeepLink(null);
-  }, [selectedId]);
-
-  const selectedCall = allCalls.find((c) => c.id === selectedId) ?? null;
-  // Mock lookup for the demo. A real integration would replace this with the
-  // remoteAuth-backed vendor fetch sketched above (`fetchCrmRecord`).
-  const selectedRecord = selectedCall
-    ? lookupCrmRecord(normalizePhoneNumber(selectedCall.party))
-    : undefined;
+  const syncing = domains.filter((d) => d.state === 'syncing').length;
 
   const ui = flowContext.ui;
   const { PageTemplate } = ui?.templates || {};
-  const { Paper, Stack, Typography, Chip, Alert, Divider, Box, Button } =
-    ui || {};
+  const {
+    Alert,
+    Box,
+    Button,
+    Chip,
+    Paper,
+    Stack,
+    StatBlock,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableRow,
+    Typography,
+  } = ui || {};
 
-  if (!PageTemplate || !Paper || !Stack || !Typography || !Chip || !Box) {
+  if (
+    !PageTemplate ||
+    !Box ||
+    !Chip ||
+    !Paper ||
+    !Stack ||
+    !Table ||
+    !TableBody ||
+    !TableCell ||
+    !TableHead ||
+    !TableRow ||
+    !Typography
+  ) {
     return (
       <div {...marker} style={{ padding: 24 }}>
         UI components not available
@@ -174,256 +126,273 @@ export default function CrmIntegrationPage({ ...marker }: ZoneMarkerProps) {
     );
   }
 
-  const callLabel = (c: RecentCall) => {
-    const rec = lookupCrmRecord(normalizePhoneNumber(c.party));
-    // CRM match wins; otherwise the API's friendly name; otherwise the number.
-    return rec?.name ?? c.name ?? c.party;
-  };
+  const connection = CONNECTION_STATE[SAMPLE_CONNECTION.state];
 
   return (
     <PageTemplate
       {...marker}
-      title={`${VENDOR_NAME} Integration`}
-      subtitle="The signed-in user's NetSapiens calls, matched to their CRM record"
+      title={COPY.title}
+      subtitle={COPY.subtitle}
       breadcrumbs={[
         { label: t?.('MANAGE') ?? 'Manage', url: '/manage' },
-        { label: `${VENDOR_NAME} Integration` },
+        { label: COPY.title },
       ]}
     >
       <Stack spacing={3}>
-        {/* apiProxy status banner — the recent-call list is a live v2 API call. */}
-        {Alert &&
-          (liveStatus === 'live' ? (
-            <Alert severity='success'>
-              Loaded {liveCalls.length} live call
-              {liveCalls.length === 1 ? '' : 's'} for{' '}
-              <strong>
-                {user?.extension}@{user?.domain}
-              </strong>{' '}
-              via{' '}
-              <code>
-                GET /domains/{user?.domain}/users/{user?.extension}/cdrs
-              </code>
-              . Sample calls are shown alongside them.
-            </Alert>
-          ) : liveStatus === 'loading' ? (
-            <Alert severity='info'>
-              Loading recent calls from the NetSapiens v2 API…
-            </Alert>
-          ) : (
-            <Alert severity='info'>
-              Showing sample calls. The page still calls{' '}
-              <code>
-                GET /domains/{'{domain}'}/users/{'{user}'}/cdrs
-              </code>{' '}
-              through <code>flowContext.api</code> on load.
-            </Alert>
-          ))}
+        {Alert && <Alert severity='info'>{COPY.sampleNotice}</Alert>}
 
-        {/* Master/detail: recent calls (NetSapiens) ↔ matched CRM record. */}
-        <Stack
-          direction='row'
-          spacing={3}
-          flexWrap='wrap'
-          alignItems='flex-start'
+        {/* Connection + last sync, side by side on a wide screen. */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+            gap: 3,
+          }}
         >
-          {/* Left: recent calls */}
-          <Paper
-            rounded
-            sx={{ p: 0, flex: '1 1 360px', minWidth: 300, overflow: 'hidden' }}
+          <Section
+            title={COPY.connectionTitle}
+            description={COPY.connectionDescription}
           >
-            <Typography
-              variant='subtitle1'
-              sx={{ px: 2, pt: 2, pb: 1, fontWeight: 600 }}
-            >
-              Recent calls · NetSapiens
-            </Typography>
-            {Divider && <Divider />}
-            <Stack divider={Divider ? <Divider /> : undefined}>
-              {allCalls.map((c) => {
-                const isSel = c.id === selectedId;
-                return (
-                  <Box
-                    key={c.id}
-                    onClick={() => setSelectedId(c.id)}
-                    sx={{
-                      px: 2,
-                      py: 1.5,
-                      cursor: 'pointer',
-                      bgcolor: isSel ? 'action.selected' : 'transparent',
-                      '&:hover': { bgcolor: 'action.hover' },
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: 2,
-                    }}
-                  >
-                    <Stack
-                      direction='row'
-                      spacing={1.5}
-                      alignItems='center'
-                      sx={{ minWidth: 0 }}
-                    >
-                      <Typography component='span' sx={{ opacity: 0.6 }}>
-                        {c.direction === 'outbound' ? '↑' : '↓'}
-                      </Typography>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography
-                          variant='body2'
-                          noWrap
-                          sx={{ fontWeight: 500 }}
-                        >
-                          {callLabel(c)}
+            <Stack direction='row' spacing={1} alignItems='center'>
+              <Chip
+                size='small'
+                variant='outlined'
+                color={connection.color}
+                label={connection.label}
+              />
+              <Chip size='small' variant='outlined' label='Sample data' />
+            </Stack>
+            <Field label='Account' value={SAMPLE_CONNECTION.account} />
+            <Field
+              label='Connected by'
+              value={`${SAMPLE_CONNECTION.connectedBy} · since ${SAMPLE_CONNECTION.connectedSince}`}
+            />
+            <Field label='Auth' value={SAMPLE_CONNECTION.authMethod} />
+            <Box>
+              <Typography variant='caption' color='text.secondary'>
+                Scopes
+              </Typography>
+              <Stack direction='row' spacing={1} flexWrap='wrap' useFlexGap>
+                {SAMPLE_CONNECTION.scopes.map((scope) => (
+                  <Chip key={scope} size='small' label={scope} />
+                ))}
+              </Stack>
+            </Box>
+          </Section>
+
+          <Section
+            title={COPY.lastSyncTitle}
+            description={COPY.lastSyncDescription}
+          >
+            <Field
+              label='Last run'
+              value={`${SAMPLE_CONNECTION.lastSync} · next ${SAMPLE_CONNECTION.nextSync}`}
+            />
+            {StatBlock ? (
+              <Stack direction='row' spacing={2}>
+                <StatBlock
+                  value={SAMPLE_CONNECTION.lastRunRecords}
+                  caption='records synced'
+                  tone='primary'
+                />
+                <StatBlock
+                  value={SAMPLE_CONNECTION.lastRunFailures}
+                  caption='failed'
+                  tone={
+                    SAMPLE_CONNECTION.lastRunFailures > 0 ? 'error' : 'success'
+                  }
+                />
+                <StatBlock
+                  value={`${syncing}/${domains.length}`}
+                  caption='domains syncing'
+                  tone='success'
+                />
+              </Stack>
+            ) : null}
+          </Section>
+        </Box>
+
+        <Section
+          title={COPY.domainsTitle}
+          description={COPY.domainsDescription}
+        >
+          {/* The kit has no TableContainer; a Paper with overflowX is all it did. */}
+          <Paper rounded background={1} sx={{ overflowX: 'auto' }}>
+            <Table size='small'>
+              <TableHead>
+                <TableRow>
+                  {DOMAIN_HEADINGS.map((heading, i) => (
+                    <TableCell key={heading || i}>{heading}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {domains.map((d) => {
+                  const state = DOMAIN_SYNC_STATE[d.state];
+                  return (
+                    <TableRow key={d.domain}>
+                      <TableCell>
+                        <code>{d.domain}</code>
+                        {d.domain === user?.domain ? (
+                          <Typography
+                            component='span'
+                            variant='caption'
+                            color='text.secondary'
+                          >
+                            {' '}
+                            · your domain
+                          </Typography>
+                        ) : null}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size='small'
+                          variant='outlined'
+                          color={state.color}
+                          label={state.label}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {d.state === 'off'
+                          ? '—'
+                          : `${d.linkedUsers} / ${d.totalUsers}`}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant='body2' color='text.secondary'>
+                          {d.lastSync}
                         </Typography>
-                        <Typography variant='caption' color='text.secondary'>
-                          {c.timeLabel} ·{' '}
-                          {c.answered
-                            ? formatDuration(c.durationSeconds)
-                            : 'missed'}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                    {c.source === 'live' && (
+                      </TableCell>
+                      <TableCell align='right'>
+                        {Button && navigate ? (
+                          // The domain page owns the per-user detail; this
+                          // page only links to it.
+                          <Button
+                            size='small'
+                            variant='text'
+                            onClick={() =>
+                              navigate(
+                                `/manage/${encodeURIComponent(d.domain)}/crm-sync`,
+                              )
+                            }
+                          >
+                            Open CRM Sync
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Paper>
+        </Section>
+
+        <Section
+          title={COPY.mappingTitle}
+          description={COPY.mappingDescription}
+        >
+          <Paper rounded background={1} sx={{ overflowX: 'auto' }}>
+            <Table size='small'>
+              <TableHead>
+                <TableRow>
+                  {MAPPING_HEADINGS.map((heading) => (
+                    <TableCell key={heading}>{heading}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {SAMPLE_FIELD_MAPPINGS.map((m) => (
+                  <TableRow key={m.crmField}>
+                    <TableCell>
+                      <code>{m.flowField}</code>
+                    </TableCell>
+                    <TableCell>
+                      <code>{m.crmField}</code>
+                    </TableCell>
+                    <TableCell>
                       <Chip
-                        label='● Live'
-                        color='success'
                         size='small'
                         variant='outlined'
+                        label={MAPPING_DIRECTION[m.direction]}
                       />
-                    )}
-                  </Box>
-                );
-              })}
-            </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant='body2' color='text.secondary'>
+                        {m.note}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </Paper>
+        </Section>
 
-          {/* Right: matched CRM record (mock data) */}
-          <Paper rounded sx={{ flex: '1 1 320px', minWidth: 280 }}>
-            <Stack
-              direction='row'
-              alignItems='center'
-              justifyContent='space-between'
-              sx={{ mb: 2 }}
-            >
-              <Typography variant='subtitle1' sx={{ fontWeight: 600 }}>
-                Matched CRM record
-              </Typography>
-              <Chip label='Sample CRM data' size='small' variant='outlined' />
-            </Stack>
-
-            {selectedRecord ? (
-              <Stack spacing={1.5}>
-                <Box>
-                  <Typography variant='h6'>{selectedRecord.name}</Typography>
-                  <Typography variant='body2' color='text.secondary'>
-                    {selectedRecord.company}
-                  </Typography>
-                </Box>
-                {Divider && <Divider />}
-                <Field
-                  label='Last contact'
-                  value={selectedRecord.lastContact}
-                  T={Typography}
-                />
-                <Field
-                  label='Lifetime calls'
-                  value={String(selectedRecord.callCount)}
-                  T={Typography}
-                />
-                <Field
-                  label={t?.('NOTES') ?? 'Notes'}
-                  value={selectedRecord.notes}
-                  T={Typography}
-                />
-                {Button && (
-                  <Button
-                    variant='text'
-                    sx={{ alignSelf: 'flex-start', px: 0 }}
-                    onClick={() => {
-                      // Demo: instead of navigating to a live vendor site, reveal
-                      // the per-contact deep-link the host would open — showing the
-                      // matched contact's data handed off to the CRM.
-                      const url = `${VENDOR_CRM_BASE_URL}/contacts/${encodeURIComponent(
-                        normalizePhoneNumber(selectedCall?.party ?? ''),
-                      )}`;
-                      console.info(
-                        `[${VENDOR_NAME}] would deep-link contact →`,
-                        url,
-                      );
-                      setDeepLink(url);
-                    }}
-                  >
-                    Open in {VENDOR_NAME} ↗
-                  </Button>
-                )}
-                {deepLink && (
-                  <Typography
-                    variant='caption'
-                    color='text.secondary'
-                    sx={{ wordBreak: 'break-all' }}
-                  >
-                    Deep-links this contact into {VENDOR_NAME}:{' '}
-                    <code>{deepLink}</code>
-                  </Typography>
-                )}
-              </Stack>
-            ) : (
-              <Typography variant='body2' color='text.secondary'>
-                No CRM match for{' '}
-                <strong>{selectedCall ? selectedCall.party : '—'}</strong>. In a
-                real integration you'd offer to create the contact here.
-              </Typography>
-            )}
-          </Paper>
-        </Stack>
-
-        {Divider && <Divider />}
-
-        {/* Footer — what the SDK made possible on this page. */}
+        {/* Footer — what this page is for, and which page is for the rest. */}
         <Paper rounded>
           <Typography variant='h6' gutterBottom>
-            About this integration
+            {COPY.aboutTitle}
           </Typography>
-          <Typography variant='body2' color='text.secondary' sx={{ mb: 1 }}>
-            This page is injected into the <strong>Manage</strong> menu (after
-            Call Logs) by a remote app via the Flow SDK — no host changes, and
-            not limited to the Apps menu. It surfaces a third-party CRM{' '}
-            <em>inside</em> Flow, something the host doesn't do natively.
-          </Typography>
-          <Typography variant='body2' color='text.secondary'>
-            The recent-call list is a live <code>flowContext.api</code> call to
-            the NetSapiens v2 API, proxied and audited by the host — credentials
-            never reach this remote. Caller matching reuses the same mock CRM
-            directory that powers the inbound-call widget. In a real
-            integration, your app would authenticate to the CRM backend on
-            behalf of the Flow user via <code>auth.requestRemoteAuth</code> (see
-            the <strong>Remote Auth</strong> tab) and pull live records instead
-            of mock data.
-          </Typography>
+          <Stack spacing={1}>
+            {COPY.about.map((para) => (
+              <Typography key={para} variant='body2' color='text.secondary'>
+                {para}
+              </Typography>
+            ))}
+          </Stack>
         </Paper>
       </Stack>
     </PageTemplate>
   );
 }
 
-/** One label/value row in the CRM record card. `T` is the host Typography. */
-function Field({
-  label,
-  value,
-  T,
+/**
+ * A titled, rounded page card. Module-level and reading the live context
+ * itself, rather than closing over the page's kit, so it keeps one identity
+ * across renders and nothing is prop-drilled.
+ */
+function Section({
+  title,
+  description,
+  children,
 }: {
-  label: string;
-  value: string;
-  T: ComponentType<Record<string, unknown>>;
+  title: string;
+  description: string;
+  children: ReactNode;
 }) {
-  const Box = useFlowContext().ui?.Box;
-  if (!Box) return null;
+  const { ui } = useFlowContext();
+  const { Box, Card, CardContent, Stack, Typography } = ui ?? {};
+  if (!Box || !Card || !CardContent || !Stack || !Typography) return null;
+  return (
+    <Card rounded sx={{ height: 1 }}>
+      <CardContent>
+        <Stack spacing={2}>
+          <Box>
+            <Typography variant='subtitle1' fontWeight={600}>
+              {title}
+            </Typography>
+            <Typography variant='caption' color='text.secondary'>
+              {description}
+            </Typography>
+          </Box>
+          {children}
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** One label/value row inside a Section. */
+function Field({ label, value }: { label: string; value: string }) {
+  const { ui } = useFlowContext();
+  const { Box, Typography } = ui ?? {};
+  if (!Box || !Typography) return null;
   return (
     <Box>
-      <T variant='caption' color='text.secondary'>
+      <Typography variant='caption' color='text.secondary'>
         {label}
-      </T>
-      <T variant='body2'>{value}</T>
+      </Typography>
+      <Typography variant='body2'>{value}</Typography>
     </Box>
   );
 }
