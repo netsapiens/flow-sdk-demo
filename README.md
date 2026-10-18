@@ -93,7 +93,7 @@ retained live feeds** (`sdk.streams`), an **on-demand side panel**, and a
 | Component Showcase  | Apps                           | Reference for every shared MUI Aurora component (`pages/ComponentShowcasePage.tsx`).                                                                                                                                                                                                                                                                                                                                                                                             |
 | Live Operations     | Apps                           | **The `sdk.streams` example.** A live wallboard of queues, agents, domain calls, call records, presence and phones, each card showing its stream's status — including the host's refusal for users whose scope does not allow a feed (`pages/liveOperations/LiveOperationsPage.tsx`).                                                                                                                                                                                            |
 | Example CRM         | Apps                           | A vendor dashboard page built on `templates.DashboardTemplate`: the host's grid, card frames and range control on a page the app owns (`pages/VendorDashboardPage.tsx`).                                                                                                                                                                                                                                                                                                         |
-| CRM Integration     | Manage (after _Call Logs_)     | Lists the user's calls from a **live** NetSapiens v2 API call, matched to their CRM record — registered into the Manage menu to show the Manage tree can be extended, not just Apps (`pages/CrmIntegrationPage.tsx`).                                                                                                                                                                                                                                                            |
+| CRM Integration     | Manage (after _Call Logs_)     | **Platform-level** CRM connection and settings — connection status, which domains sync, field mapping, last sync (sample data). Registered into the Manage menu to show the Manage tree can be extended, not just Apps (`pages/CrmIntegrationPage.tsx`).                                                                                                                                                                                                                         |
 | CRM Sync            | Manage, **inside a domain**    | **Domain-scoped.** Registered once at `/manage/:domain`, so it mounts under whichever domain an admin has drilled into and reads that domain with `useManagingDomain()` — one registration, every domain (`pages/DomainCrmSyncPage.tsx`).                                                                                                                                                                                                                                        |
 | Recording QA Review | My Account (after _Call Logs_) | **The reference list page**, over a mock QA review queue (agent, reviewer, score, flags) — data the host does not have; playback stays in Call Logs. Everything — search, filter, columns, export, refresh, checkbox selection, master-detail and the pagination footer — comes from `DatagridTemplate`; the primary action ("Assign N selected to me") sits in `PageTemplate`'s header `actions`. Shows the /home tree can be extended too (`pages/RecordingQaReviewPage.tsx`). |
 
@@ -746,12 +746,13 @@ The full rule, its three carve-outs, and the grep commands that check it are in
 src/
   App.tsx                     # Orchestrator: registers all routes, extensions, column, widgets, softphone streams
   api/
-    callsApi.ts               # NetSapiens v2 API helper (live recent-calls/CDR fetch via the proxy)
+    callsApi.ts               # NetSapiens v2 API helper (recent-calls/CDR fetch via the proxy; no page calls it today)
   columns/
     CrmStatusColumn.tsx       # CRM Status (SDK) column cell
   components/
   content/
     demoContent.ts            # Static content for DemoPage (capabilities, zones, patterns, snippets)
+    crmIntegrationContent.ts  # Copy for the CRM Integration page
   extensions/                 # One component per zone extension
   widgets/                    # One component per dashboard widget (panels, leaves, a container)
   mocks/                      # Demo fixtures (people, CRM, recent calls, sample table) — see mocks/README.md
@@ -763,7 +764,7 @@ src/
     demo/                     # One component per DemoPage tab (+ accents.ts palette paths)
     ComponentShowcasePage.tsx # Composes the showcase sections
     showcase/sections/        # One self-contained section per shared UI component
-    CrmIntegrationPage.tsx    # Full page: remoteAuth connect + live API call + CRM matching
+    CrmIntegrationPage.tsx    # Full page: platform CRM connection, domains, field mapping
     DomainCrmSyncPage.tsx     # Full page, DOMAIN-SCOPED: registered at /manage/:domain, reads useManagingDomain()
 ```
 
@@ -928,13 +929,12 @@ that window will not see the extension. Keep the gap short.
 
 ## Notes
 
-- **Live data on the CRM Integration page.** On load it calls
-  `GET /domains/{domain}/users/{user}/cdrs` for the signed-in user via
-  `flowContext.api`, tags those rows **● Live**, and shows sample calls
-  alongside them so the page is never empty. Caller matching reuses the same mock
-  CRM directory that powers the inbound-call widget. (Authenticating to a real CRM
-  backend on behalf of the user — the `auth.requestRemoteAuth` flow — is
-  demonstrated standalone on the **Remote Auth** tab and can gate this page later.)
+- **The CRM Integration page is sample data.** It shows the platform-level
+  connection, per-domain sync state and field mapping from a static fixture
+  (`mocks/crmConnection.ts`), so it reads the same on any server. Live per-domain
+  data is the **CRM Sync** page's job. (Authenticating to a real CRM backend on
+  behalf of the user — the `auth.requestRemoteAuth` flow — is demonstrated
+  standalone on the **Remote Auth** tab and can gate this page later.)
 - **The on-demand side panel** is Flow's own right-hand drawer, mounted once by
   the host. Open it with `useSidePanel(context)` / `context.openSidePanel` in
   host-rendered components, or `useSidePanel()` / `sdk.openSidePanel()` in a

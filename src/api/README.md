@@ -1,7 +1,7 @@
 # Calls API helper
 
 `callsApi.ts` fetches the signed-in user's recent call detail records (CDRs) from
-the NetSapiens v2 API and normalizes them for the **CRM Integration** demo page.
+the NetSapiens v2 API and normalizes them to the demo's `RecentCall` shape.
 It calls the API through the SDK's authenticated proxy (`flowContext.api`) —
 credentials never reach the remote app; the host injects auth and audits the call.
 
@@ -27,10 +27,12 @@ const calls = await fetchRecentCalls(user.domain, user.extension, api);
 // ]
 ```
 
-`CrmIntegrationPage` calls this on mount and falls back to the sample calls in
-`mocks/recentCalls.ts` if the user has no live calls (or the call fails), so the
-page is never empty. Each call's `party` is run through `normalizePhoneNumber`
-(from `mocks/crm.ts`) so it lines up with the CRM directory keys for matching.
+**No page calls this today.** `CrmIntegrationPage` used to list these calls
+beside the matched CRM record, but that repeated the host's own Call Logs page,
+so the page became the platform-level CRM connection view instead (3.0.12). The
+helper stays as a worked example of a filtered, user-scoped v2 fetch through the
+proxy. Each call's `party` is run through `normalizePhoneNumber` (from
+`mocks/crm.ts`) so it lines up with the CRM directory keys for matching.
 
 ## Exports
 

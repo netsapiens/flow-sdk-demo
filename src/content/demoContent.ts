@@ -199,7 +199,7 @@ export const WALKTHROUGH: WalkthroughItem[] = [
   },
   {
     label: 'CRM Integration',
-    desc: 'A full registered page in the Manage menu that lists the user’s calls from a live NetSapiens v2 API call and matches each caller to their CRM record.',
+    desc: 'A full registered page in the Manage menu: the platform-wide CRM connection — status, which domains sync, and the field mapping (sample data).',
     nav: '/manage/crm-integration',
     badge: 'primary',
   },
