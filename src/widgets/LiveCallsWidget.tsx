@@ -210,8 +210,8 @@ export function LiveCallsWidget({
 
   /**
    * Open the shared side panel on one call. `CallDetailsPanel` takes the row as
-   * a prop, so it is closed over here — the same shape `QuickActionButton` uses
-   * to open it from a table row.
+   * a prop, so it is closed over here — the same shape `OpenInCrmAction` uses
+   * to open the CRM panel from a Call Logs row.
    */
   const openDetails = (call: CallerInfo) => {
     const Panel = (props: SidePanelContentProps) => (

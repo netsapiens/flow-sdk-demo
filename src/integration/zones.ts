@@ -21,9 +21,9 @@ import ComplianceCheckbox from '../extensions/ComplianceCheckbox';
 import ContactFormBanner from '../extensions/ContactFormBanner';
 import FormDataInspector from '../extensions/FormDataInspector';
 import { HeaderStatusBadge } from '../extensions/HeaderStatusBadge';
-import { QuickActionButton } from '../extensions/QuickActionButton';
+import { OpenInCrmAction } from '../extensions/OpenInCrmAction';
 import { TableToolbarInfo } from '../extensions/TableToolbarInfo';
-import { TopbarHelpButton } from '../extensions/TopbarHelpButton';
+import { TopbarCrmButton } from '../extensions/TopbarCrmButton';
 import { withZoneTestId } from './withZoneTestId';
 import manifestJson from './zones.manifest.json';
 
@@ -122,7 +122,7 @@ const COMPONENTS: Record<
   ComponentType<ExtensionComponentProps & ZoneMarkerProps>
 > = {
   'demo-analytics-widget': AnalyticsWidget,
-  'demo-quick-action': QuickActionButton,
+  'demo-open-in-crm': OpenInCrmAction,
   'demo-caller-info-widget': CallerInfoWidget,
   'demo-contact-form-banner': ContactFormBanner,
   'demo-compliance-checkbox': ComplianceCheckbox,
@@ -130,7 +130,7 @@ const COMPONENTS: Record<
   'demo-active-calls-recording-filter': ActiveCallsRecordingFilter,
   'demo-header-status-badge': HeaderStatusBadge,
   'demo-table-toolbar-info': TableToolbarInfo,
-  'demo-topbar-help': TopbarHelpButton,
+  'demo-topbar-crm': TopbarCrmButton,
 };
 
 export interface ExtensionRegistration {
