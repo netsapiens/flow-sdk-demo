@@ -15,10 +15,10 @@ import type { ComponentType } from 'react';
 import type { ZoneMarkerProps } from './withZoneTestId';
 import { ActiveCallsRecordingFilter } from '../extensions/ActiveCallsRecordingFilter';
 import { AnalyticsWidget } from '../extensions/AnalyticsWidget';
+import { analyzeCallsActions } from '../extensions/AnalyzeCallsAction';
 import { CallerInfoWidget } from '../extensions/CallerInfoWidget';
 import ComplianceCheckbox from '../extensions/ComplianceCheckbox';
 import ContactFormBanner from '../extensions/ContactFormBanner';
-import { exportActions } from '../extensions/ExportButton';
 import FormDataInspector from '../extensions/FormDataInspector';
 import { HeaderStatusBadge } from '../extensions/HeaderStatusBadge';
 import { QuickActionButton } from '../extensions/QuickActionButton';
@@ -112,7 +112,7 @@ export const manifest = manifestJson as unknown as ZonesManifest;
 // zones: the app supplies intent and behaviour, the host owns the styling, so a
 // contributed button cannot drift from the page it sits on.
 const ACTIONS: Record<string, ExtensionAction[]> = {
-  'demo-export-button': exportActions,
+  'demo-analyze-calls': analyzeCallsActions,
 };
 
 // Manifest id -> the component that renders in that zone. For anything that is

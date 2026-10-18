@@ -235,25 +235,26 @@ export const CODE_EXAMPLES: CodeExample[] = [
 // own header buttons, so it cannot drift from the page it sits on.
 // 'secondary' is the default; 'primary' and 'danger' are the other intents.
 sdk.registerDynamicExtension({
-  id: 'demo-export-button',
+  id: 'demo-analyze-calls',
   zone: 'page-header-actions',
-  routes: [
-    { pattern: '/manage/call-logs' },
-    { pattern: '/manage/*/contacts' },
-    { pattern: '/manage/*/users' },
-  ],
+  routes: [{ pattern: '/manage/call-logs' }, { pattern: '/manage/*/call-logs' }],
   priority: 10,
   actions: [
     {
-      id: 'export-data',
-      label: 'Export data',
-      icon: 'material-symbols:download',
+      id: 'analyze-calls',
+      label: 'Analyze calls',
+      icon: 'material-symbols:query-stats',
       intent: 'secondary',
       // Page state arrives at click time. On a table page the host publishes
       // rows / selectedRows, so an action can work on the user's selection.
-      onClick: ({ pageContext, route }) => {
+      // An action gets no SDK handle: keep your own (here, appSdk).
+      onClick: ({ pageContext }) => {
         const { rows, selectedRows } = pageContext ?? {};
-        exportRows(selectedRows?.length ? selectedRows : rows, route);
+        const calls = selectedRows?.length ? selectedRows : rows;
+        appSdk.current?.openSidePanel({
+          title: 'Call analysis',
+          component: (props) => <CallAnalysisPanel {...props} rows={calls} />,
+        });
       },
     },
     // Several buttons from one registration: add an entry. Several apps in one
