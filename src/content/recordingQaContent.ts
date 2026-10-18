@@ -33,4 +33,4 @@ export const RECORDING_QA_COPY = {
 } as const;
 
 /** Where the host plays a recording: My Account → Call Logs. */
-export const CALL_LOGS_PATH = '/home/inbox/call';
+export const CALL_LOGS_PATH = '/home/call-logs';

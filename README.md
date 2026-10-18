@@ -146,8 +146,8 @@ with `placement` instead.
 
 `placement` anchors match on a **normalized** menu label, not a path. In the
 example above `after: 'call-logs'` resolves the My Account item whose name is
-`CALL_LOGS` — both normalize to `calllogs` — even though that item's own path is
-`/home/inbox/call`. Unmatched anchors fall back to the end of the menu.
+`CALL_LOGS` — both normalize to `calllogs`. The match uses the item's name, not
+its path (`/home/call-logs`). Unmatched anchors fall back to the end of the menu.
 
 > **Host version:** menu entries for `/home` require the host-side fix that
 > maps the `myaccount` section to the `/home` prefix. On earlier hosts the route

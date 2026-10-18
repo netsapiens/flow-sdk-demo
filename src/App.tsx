@@ -420,9 +420,10 @@ export default function App(flowContext: FlowContext) {
         // "Choosing a menu — parentPath" in the README.
         //
         // Placed right after Call Logs, where the recordings it reviews play.
-        // The anchor is matched by normalizing the menu item's name, so
-        // 'call-logs' resolves the My Account item whose name is 'CALL_LOGS'
-        // (both normalize to 'calllogs') even though its path is /home/inbox/call.
+        // The anchor is matched by normalizing the menu item's NAME, not its
+        // path: 'call-logs' resolves the My Account item named 'CALL_LOGS'
+        // (both normalize to 'calllogs'). That its path is /home/call-logs
+        // is a coincidence the match does not rely on.
         parentPath: '/home',
         path: 'recording-qa-review',
         label: 'Recording QA Review',
