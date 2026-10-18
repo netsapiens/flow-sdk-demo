@@ -69,6 +69,9 @@ export interface CallerInfo {
   lastContact?: string;
   notes?: string;
   callCount?: number;
+  /** The CRM's tier and open deal, for the console's flags (see mocks/crm.ts). */
+  tier?: CrmRecord['tier'];
+  opportunity?: CrmRecord['opportunity'];
 }
 
 /** In-memory store of active calls, shared across component instances. */
@@ -133,6 +136,8 @@ export function createCallEventHandler(ownExtension = '') {
       lastContact: record?.lastContact,
       notes: record?.notes,
       callCount: record?.callCount,
+      tier: record?.tier,
+      opportunity: record?.opportunity,
     };
 
     activeCallsStore.set(event.callId, enriched);

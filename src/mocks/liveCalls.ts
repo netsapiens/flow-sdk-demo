@@ -14,9 +14,16 @@
 import type { CallerInfo } from '../services/callEnrichment';
 import { MOCK_CRM_DIRECTORY } from './crm';
 
+/**
+ * A caller the CRM has no record for, so the board shows the unmatched case
+ * too — and its Log note action, which creates a lead instead of adding to an
+ * account.
+ */
+const UNKNOWN_CALLER = '+13025551000';
+
 /** Built from the shared CRM directory so the enrichment toggle has data to show. */
 export function buildSampleCalls(now: Date): CallerInfo[] {
-  const entries = Object.entries(MOCK_CRM_DIRECTORY).slice(0, 4);
+  const entries = Object.entries(MOCK_CRM_DIRECTORY).slice(0, 3);
   const statuses: CallerInfo['status'][] = [
     'ringing',
     'answered',
@@ -24,18 +31,34 @@ export function buildSampleCalls(now: Date): CallerInfo[] {
     'ringing',
   ];
 
-  return entries.map(([party, record], index) => ({
-    callId: `sample-call-${index + 1}`,
-    from: party,
-    to: '2001',
-    direction: index % 2 === 0 ? 'inbound' : 'outbound',
-    status: statuses[index % statuses.length],
-    // Staggered so the durations below read as a plausible live board.
-    timestamp: now.getTime() - (index + 1) * 47_000,
-    callerName: record.name,
-    company: record.company,
-    lastContact: record.lastContact,
-    notes: record.notes,
-    callCount: record.callCount,
-  }));
+  const known = entries.map(
+    ([party, record], index): CallerInfo => ({
+      callId: `sample-call-${index + 1}`,
+      from: party,
+      to: '2001',
+      direction: index % 2 === 0 ? 'inbound' : 'outbound',
+      status: statuses[index % statuses.length],
+      // Staggered so the durations below read as a plausible live board.
+      timestamp: now.getTime() - (index + 1) * 47_000,
+      callerName: record.name,
+      company: record.company,
+      lastContact: record.lastContact,
+      notes: record.notes,
+      callCount: record.callCount,
+      tier: record.tier,
+      opportunity: record.opportunity,
+    }),
+  );
+
+  return [
+    ...known,
+    {
+      callId: `sample-call-${known.length + 1}`,
+      from: UNKNOWN_CALLER,
+      to: '2001',
+      direction: 'inbound',
+      status: statuses[known.length % statuses.length],
+      timestamp: now.getTime() - (known.length + 1) * 47_000,
+    },
+  ];
 }

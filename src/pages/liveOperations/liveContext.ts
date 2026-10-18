@@ -20,6 +20,10 @@ import { createContext, useContext } from 'react';
 export interface Sample {
   label: string;
   calls: number;
+  /** Calls in progress with a party the CRM knows (crmJoin.ts). */
+  known: number;
+  /** Of those, calls with a VIP account. */
+  vip: number;
   waiting: number;
   /** Seconds the oldest waiting caller has waited, across every queue. */
   longestWait: number;
@@ -29,12 +33,7 @@ export interface Sample {
    * gap, not as zero.
    */
   agentsFree: number | null;
-  registered: number;
   available: number;
-  /** Inbound calls answered since the app loaded. */
-  answered: number;
-  /** Missed share of inbound calls (answered + missed), 0–100. */
-  missedPct: number;
 }
 
 /** One delivery from `cdrs.onDomain`: the record as sent, and what changed. */
@@ -214,10 +213,6 @@ export function countOutcome(o: Outcomes, record: CallRecord): Outcomes {
       return o;
   }
 }
-
-/** Missed share of inbound calls (answered + missed), 0–100. */
-export const missedPctOf = (o: Outcomes) =>
-  o.answered + o.missed ? (o.missed / (o.answered + o.missed)) * 100 : 0;
 
 /** Which queue's drill-down panel is open; set by a Queues row click. */
 export const QueuePickContext = createContext<(queue: string) => void>(

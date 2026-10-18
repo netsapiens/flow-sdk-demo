@@ -6,8 +6,22 @@
  *
  * Internal extensions are derived from the shared `mocks/people.ts` directory so
  * the same people appear consistently across the demo (CRM + Hardphone Devices).
+ *
+ * `tier` and `opportunity` are the fields the cross-system views lean on: Live
+ * Operations (`pages/liveOperations/crmViews.tsx`) and the Live call console
+ * widget join Flow's live calls to them. Flow has no notion of either. That is
+ * the point — they are facts only the partner's system holds, so a view built
+ * on them is one the host cannot draw for itself.
  */
 import { INTERNAL_PEOPLE } from './people';
+
+/** An open sales opportunity, as the CRM describes it. */
+export interface CrmOpportunity {
+  name: string;
+  /** Deal value in whole US dollars. */
+  value: number;
+  stage: 'Discovery' | 'Proposal' | 'Negotiation';
+}
 
 export interface CrmRecord {
   name: string;
@@ -16,6 +30,10 @@ export interface CrmRecord {
   lastContact: string;
   notes: string;
   callCount: number;
+  /** The account's tier in the CRM. Absent means standard. */
+  tier?: 'vip' | 'standard';
+  /** An open deal on the account, when there is one. */
+  opportunity?: CrmOpportunity;
 }
 
 /** External callers, keyed by E.164 number. */
@@ -26,6 +44,12 @@ const EXTERNAL_CALLERS: Record<string, CrmRecord> = {
     lastContact: '2 days ago',
     notes: 'VIP customer — handle with priority',
     callCount: 15,
+    tier: 'vip',
+    opportunity: {
+      name: 'Renewal + 40 seats',
+      value: 48_000,
+      stage: 'Negotiation',
+    },
   },
   '+15559876543': {
     name: 'Sarah Johnson',
@@ -33,6 +57,11 @@ const EXTERNAL_CALLERS: Record<string, CrmRecord> = {
     lastContact: '1 week ago',
     notes: 'Follow up on quote from last week',
     callCount: 3,
+    opportunity: {
+      name: 'Contact-center pilot',
+      value: 12_500,
+      stage: 'Proposal',
+    },
   },
   '+15555555555': {
     name: 'Example Corp Support',
@@ -40,13 +69,24 @@ const EXTERNAL_CALLERS: Record<string, CrmRecord> = {
     lastContact: '3 hours ago',
     notes: 'Support escalation — ticket #12345',
     callCount: 47,
+    tier: 'vip',
   },
 };
 
-/** CRM-specific extras for internal people, keyed by extension. */
+/**
+ * CRM-specific extras for internal people, keyed by extension.
+ *
+ * Some carry a tier or an opportunity too. On a development domain nearly every
+ * call is extension to extension, and the cross-system views would otherwise
+ * have nothing to flag; dressing a few colleagues up as accounts is demo
+ * licence, not a model to copy.
+ */
 const INTERNAL_CRM_EXTRAS: Record<
   string,
-  Pick<CrmRecord, 'lastContact' | 'notes' | 'callCount'>
+  Pick<
+    CrmRecord,
+    'lastContact' | 'notes' | 'callCount' | 'tier' | 'opportunity'
+  >
 > = {
   '2001': {
     lastContact: 'Yesterday',
@@ -63,6 +103,12 @@ const INTERNAL_CRM_EXTRAS: Record<
     notes:
       'Reseller / channel partner — resells Flow across their territory (40+ domains). White-glove handling; route to partner success.',
     callCount: 22,
+    tier: 'vip',
+    opportunity: {
+      name: 'Territory expansion',
+      value: 96_000,
+      stage: 'Discovery',
+    },
   },
   '2364': {
     lastContact: 'This morning',
@@ -73,11 +119,13 @@ const INTERNAL_CRM_EXTRAS: Record<
     lastContact: '30 minutes ago',
     notes: 'Product Manager — requesting demo of new features',
     callCount: 5,
+    opportunity: { name: 'Analytics add-on', value: 7_200, stage: 'Proposal' },
   },
   '5226': {
     lastContact: '1 hour ago',
     notes: 'Executive escalation — engineering leadership',
     callCount: 9,
+    tier: 'vip',
   },
   '6767': {
     lastContact: 'Opening Day',
@@ -149,6 +197,23 @@ export function findCrmRecord(
 }
 
 /**
+ * The CRM record behind a call party, if any. A stream names a party by
+ * extension (`user`), by number, or both, and the number may still be a SIP
+ * URI: try each through `findCrmRecord`, and take the first that resolves.
+ */
+export function matchCrmParty(party: {
+  user?: string;
+  number?: string;
+}): CrmRecord | undefined {
+  for (const raw of [party.number, party.user]) {
+    if (!raw) continue;
+    const hit = findCrmRecord(raw);
+    if (hit) return hit.record;
+  }
+  return undefined;
+}
+
+/**
  * Case-insensitive search over name, company and number — what a CRM's own
  * "find a contact" box does, against the fixture instead of a vendor API. An
  * empty query returns the whole directory, which is small enough to list.
@@ -168,4 +233,11 @@ export function searchCrmDirectory(
         (qDigits.length > 0 && key.replace(/\D/g, '').includes(qDigits)),
     )
     .map(([key, record]) => ({ key, record }));
+}
+
+/** `$48k`, `$7.2k`: an opportunity's value at a glance. */
+export function formatDealValue(value: number): string {
+  if (value < 1_000) return `$${value}`;
+  const k = value / 1_000;
+  return `$${k >= 10 ? Math.round(k) : k.toFixed(1).replace(/\.0$/, '')}k`;
 }

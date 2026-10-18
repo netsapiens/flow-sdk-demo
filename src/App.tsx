@@ -585,8 +585,12 @@ export default function App(flowContext: FlowContext) {
       // Written out in full, as literals. Two zones because the same panel suits
       // both dashboards; the user still adds it separately on each.
       zones: ['platform-admin-dashboard-widgets', 'manage-dashboard-widgets'],
-      title: 'Recent activity',
-      description: 'Recent call activity for the selected time range.',
+      // The title is free to change; the id is not. This card used to be
+      // "Recent activity" over a call feed — Call Logs again — and now lists
+      // what the app itself did in the CRM, under the same stored id.
+      title: 'CRM activity',
+      description:
+        'Contacts synced, leads created and notes written back to Example CRM.',
       icon: 'mdi:pulse',
       // Decides the catalogue section AND the shape of the loading wireframe the
       // host draws while the component is suspended.
@@ -623,8 +627,11 @@ export default function App(flowContext: FlowContext) {
       id: 'call-volume',
       kind: 'panel',
       zones: ['platform-admin-dashboard-widgets'],
-      title: 'Call volume',
-      description: 'Answered vs missed calls across the dashboard’s range.',
+      // Answered vs missed is a chart the host's dashboard already draws; the
+      // share of callers the CRM recognised is one only this app can.
+      title: 'Call volume by CRM match',
+      description:
+        'Calls whose caller is in Example CRM vs not, across the dashboard’s range.',
       icon: 'mdi:chart-bar',
       // The category picks the catalogue section AND the loading wireframe the
       // host draws — 'charts' gets a plot with axes and a legend rather than the
@@ -645,7 +652,8 @@ export default function App(flowContext: FlowContext) {
       // number nobody can trace is a number nobody trusts, and this is the whole
       // cost of saying where one came from.
       metric: {
-        formula: 'count(call_events) grouped by bucket, split by disposition',
+        formula:
+          'count(calls) grouped by bucket, split by CRM match on the caller',
         source: 'Demo fixture — mocks/widgetActivity.ts',
         cadence: 'On range change',
       },
@@ -672,15 +680,19 @@ export default function App(flowContext: FlowContext) {
     // A REALTIME PANEL, and the demo's blank-canvas example. Every other widget
     // here maps onto something the host already draws; this one is a layout the
     // platform has no equivalent for, composed from kit primitives — a filter,
-    // a toggle, a card per call, per-row actions. A partner's product is usually
-    // not a restyled version of ours, so the kit has to express something we
-    // never anticipated without the app reaching for its own styling.
+    // a toggle, a card per call, a per-row action. A partner's product is
+    // usually not a restyled version of ours, so the kit has to express
+    // something we never anticipated without the app reaching for its own
+    // styling. Each call is shown as the CRM account it belongs to, and the row
+    // action writes a note back to the CRM — the host's Active Calls can do
+    // neither.
     sdk.registerWidget({
       id: 'live-calls',
       kind: 'panel',
       zones: ['platform-admin-dashboard-widgets'],
-      title: 'Live call console',
-      description: 'Calls in progress, pushed as they ring.',
+      title: 'CRM call console',
+      description:
+        'Your calls in progress as Example CRM accounts, with a note per call.',
       icon: 'mdi:phone-in-talk',
       category: 'activity',
       size: { default: 'half', resizable: true, height: 4 },

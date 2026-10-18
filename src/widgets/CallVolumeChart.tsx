@@ -1,14 +1,24 @@
 /**
- * Call volume — a `kind: 'panel'` widget in the **charts** category.
+ * Call volume, matched to the CRM — a `kind: 'panel'` widget in the **charts**
+ * category.
  *
- * Registered in `App.tsx` §4. This file used to hand-draw its bars out of
+ * Registered in `App.tsx` §4 under the id `call-volume`, which is unchanged:
+ * the stored id is what lands in every saved layout. What it charts did
+ * change. It used to stack answered vs missed calls, and the host's own
+ * dashboard already charts call volume (its calls chart reads the same CDRs),
+ * so the card was a copy of a native one with a different owner. It now
+ * splits each bucket by whether the caller resolved to an Example CRM record
+ * (`mocks/crm.ts`) — the integration's match rate, which only the integration
+ * can know. A climbing "Not in the CRM" bar is the prompt to go create leads.
+ *
+ * This file used to hand-draw its bars out of
  * `Box` elements, because `context.ui` had no chart of any kind and the host
  * kept its ten ECharts panels to itself. It now uses `ui.Chart`, and the
  * difference is the whole argument for the SDK:
  *
  * - The host owns ECharts, the palette, the grid, the axes, the legend and the
  *   tooltip. This file owns the bucketing and nothing else.
- * - Series colour is a semantic `tone` — `'success'`, `'error'` — never a hex.
+ * - Series colour is a semantic `tone` — `'primary'`, `'warning'` — never a hex.
  *   The app says what a series *means* and the host decides what that looks
  *   like, so the bars follow the light/dark toggle with nothing here to update.
  * - `kind: 'bar'` with `stacked` is the same option shape the native Voice usage
@@ -22,15 +32,15 @@ import type { WidgetComponentProps } from '@netsapiens/flow-sdk';
 import { useMemo } from 'react';
 
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
-import { buildActivityFeed } from '../mocks/widgetActivity';
+import { buildCallFeed } from '../mocks/widgetActivity';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** One column of the chart. Keys match the `series` declared below. */
 interface Bucket extends Record<string, unknown> {
   label: string;
-  answered: number;
-  missed: number;
+  matched: number;
+  unmatched: number;
 }
 
 /** Fixed column count — the host thins the axis labels so they never collide. */
@@ -64,16 +74,16 @@ export function CallVolumeChart({
 
     const empty: Bucket[] = Array.from({ length: COLUMNS }, (_, index) => ({
       label: bucketLabel(new Date(fromDate.getTime() + index * width), spanMs),
-      answered: 0,
-      missed: 0,
+      matched: 0,
+      unmatched: 0,
     }));
 
-    for (const event of buildActivityFeed(toDate)) {
-      const offset = new Date(event.at).getTime() - fromDate.getTime();
+    for (const call of buildCallFeed(toDate)) {
+      const offset = new Date(call.at).getTime() - fromDate.getTime();
       if (offset < 0 || offset > spanMs) continue;
       const slot = Math.min(COLUMNS - 1, Math.floor(offset / width));
-      if (event.kind === 'missed') empty[slot].missed += 1;
-      else empty[slot].answered += 1;
+      if (call.account) empty[slot].matched += 1;
+      else empty[slot].unmatched += 1;
     }
 
     return empty;
@@ -81,7 +91,7 @@ export function CallVolumeChart({
 
   // Carve-out: with no kit there is nothing to draw a chart with.
   if (!Chart) {
-    const total = buckets.reduce((n, b) => n + b.answered + b.missed, 0);
+    const total = buckets.reduce((n, b) => n + b.matched + b.unmatched, 0);
     if (!Stack || !Typography) return <div {...marker}>{total} calls</div>;
     return (
       <Stack {...marker} direction='column' sx={{ height: '100%' }}>
@@ -102,8 +112,10 @@ export function CallVolumeChart({
       data={buckets}
       xKey='label'
       series={[
-        { key: 'answered', label: 'Answered', tone: 'success' },
-        { key: 'missed', label: 'Missed', tone: 'error' },
+        // Semantic, not decorative: matched is the integration working, and
+        // unmatched is a warning (leads not yet created), not an error.
+        { key: 'matched', label: 'In Example CRM', tone: 'primary' },
+        { key: 'unmatched', label: 'Not in the CRM', tone: 'warning' },
       ]}
     />
   );

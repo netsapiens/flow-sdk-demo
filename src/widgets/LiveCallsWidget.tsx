@@ -10,10 +10,19 @@
  * kit has to express something we never anticipated without the app reaching for
  * its own styling.
  *
+ * It is a CRM console, not a calls list. The host already has an Active Calls
+ * stat and page; what it has no notion of is who a caller is to the partner's
+ * business. So each row is the caller as Example CRM knows them — account, VIP
+ * flag, open deal — the tiles count accounts rather than calls, a VIP ringing
+ * raises the banner, and the one per-row action is **Log note**: a side panel
+ * (`panels/LogNotePanel.tsx`) that writes a note back to the CRM, or creates a
+ * lead for a caller it does not know. Reading from Flow and writing to the
+ * partner's system, in one card, is the shape no native panel can have.
+ *
  * Sixteen kit components, no hand-styled markup, and no colour literal in the
  * file:
  *
- *   SearchField         filter by caller, debounced by the host
+ *   SearchField         filter by caller or account, debounced by the host
  *   ToggleButtonGroup   status filter
  *   Switch              CRM enrichment on/off
  *   Alert               the waiting-call banner, only while something rings
@@ -22,7 +31,7 @@
  *   Avatar              caller initials
  *   Chip                direction, status, running talk time, footer counts
  *   Tooltip             names each row action
- *   IconButton          per-row actions
+ *   IconButton          the per-row Log note action
  *   Button              the empty state's routes out
  *   Icon                the empty state's mark
  *   Divider / Stack / Typography / Box   structure
@@ -59,8 +68,9 @@ import { useSidePanel } from '@netsapiens/flow-sdk';
 
 import type { CallerInfo } from '../services/callEnrichment';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
+import { formatDealValue } from '../mocks/crm';
 import { buildSampleCalls } from '../mocks/liveCalls';
-import { CallDetailsPanel } from '../panels/CallDetailsPanel';
+import { LogNotePanel } from '../panels/LogNotePanel';
 import { activeCallsStore, onCallChanges } from '../services/callEnrichment';
 
 type StatusFilter = 'all' | 'ringing' | 'answered';
@@ -194,55 +204,47 @@ export function LiveCallsWidget({
   }
 
   const ringingCalls = calls.filter((c) => c.status === 'ringing');
-  const answered = calls.filter((c) => c.status === 'answered');
   const longestWait = ringingCalls.length
     ? Math.max(...ringingCalls.map((c) => secondsOn(c, nowMs)))
     : 0;
-  const avgTalk = answered.length
-    ? Math.round(
-        answered.reduce((n, c) => n + secondsOn(c, nowMs), 0) / answered.length,
-      )
-    : 0;
+  // Accounts, not calls: the CRM's view of who is on the line.
+  const known = calls.filter((c) => c.company);
+  const vips = known.filter((c) => c.tier === 'vip');
+  const vipsRinging = vips.filter((c) => c.status === 'ringing').length;
+  const pipeline = known.reduce((n, c) => n + (c.opportunity?.value ?? 0), 0);
 
   const hasBanner = ringingCalls.length > 0;
   const visible = shown.slice(0, rowsThatFit(widget.pixel.height, hasBanner));
   const hidden = shown.length - visible.length;
 
   /**
-   * Open the shared side panel on one call. `CallDetailsPanel` takes the row as
-   * a prop, so it is closed over here — the same shape `OpenInCrmAction` uses
-   * to open the CRM panel from a Call Logs row.
+   * Open the shared side panel on one call, to write a note back to the CRM.
+   * `LogNotePanel` takes the call as a prop, so it is closed over here — the
+   * same shape `OpenInCrmAction` uses to open the CRM panel from a Call Logs row.
    */
-  const openDetails = (call: CallerInfo) => {
+  const openLogNote = (call: CallerInfo) => {
     const Panel = (props: SidePanelContentProps) => (
-      <CallDetailsPanel
-        {...props}
-        row={{
-          'call-from': call.from,
-          'call-to': call.to,
-          'call-direction': call.direction,
-          'call-status': call.status,
-          'caller-name': call.callerName ?? '',
-          company: call.company ?? '',
-          'last-contact': call.lastContact ?? '',
-          notes: call.notes ?? '',
-        }}
-      />
+      <LogNotePanel {...props} call={call} />
     );
     open({
       title: call.callerName ?? call.from,
-      subtitle: 'Live call · opened from a dashboard widget',
+      subtitle: call.company
+        ? `Log a note to ${call.company}`
+        : 'Not in Example CRM · create a lead',
       width: 'sm',
-      icon: 'mdi:phone-in-talk',
+      icon: 'mdi:note-edit-outline',
       component: Panel,
     });
   };
 
   /** The three summary tiles. Values only — the labels never change. */
   const tiles = [
-    { label: 'Ringing', value: String(ringingCalls.length) },
-    { label: 'Connected', value: String(answered.length) },
-    { label: 'Avg talk', value: answered.length ? clock(avgTalk) : '—' },
+    { label: 'In the CRM', value: `${known.length} / ${calls.length}` },
+    { label: 'VIPs', value: String(vips.length) },
+    {
+      label: 'Open deals',
+      value: pipeline ? formatDealValue(pipeline) : '—',
+    },
   ];
 
   return (
@@ -261,7 +263,7 @@ export function LiveCallsWidget({
             <SearchField
               value={search}
               onChange={setSearch}
-              placeholder='Filter callers'
+              placeholder='Filter callers or accounts'
               size='small'
               fullWidth
             />
@@ -295,7 +297,11 @@ export function LiveCallsWidget({
       {hasBanner && Alert ? (
         <Alert
           severity='warning'
-          message={`${ringingCalls.length} waiting · longest ${clock(longestWait)}`}
+          message={
+            vipsRinging
+              ? `${vipsRinging} VIP${vipsRinging === 1 ? '' : 's'} among ${ringingCalls.length} waiting · longest ${clock(longestWait)}`
+              : `${ringingCalls.length} waiting · longest ${clock(longestWait)}`
+          }
         />
       ) : null}
 
@@ -408,8 +414,18 @@ export function LiveCallsWidget({
                 </Typography>
                 <Typography variant='caption' color='text.secondary' noWrap>
                   {enriched && call.company
-                    ? `${call.company} · ${call.callCount ?? 0} calls`
-                    : call.from}
+                    ? [
+                        call.company,
+                        call.tier === 'vip' ? 'VIP' : null,
+                        call.opportunity
+                          ? `${formatDealValue(call.opportunity.value)} ${call.opportunity.stage.toLowerCase()}`
+                          : `${call.callCount ?? 0} calls`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : enriched
+                      ? `${call.from} · not in the CRM`
+                      : call.from}
                 </Typography>
               </Box>
 
@@ -443,9 +459,7 @@ export function LiveCallsWidget({
               <Box sx={{ justifySelf: 'end' }}>
                 {IconButton ? (
                   Tooltip ? (
-                    <Tooltip
-                      title={context.t?.('CALL_DETAILS') ?? 'Call details'}
-                    >
+                    <Tooltip title={call.company ? 'Log note' : 'Create lead'}>
                       {/* Tooltip needs a child that holds a ref, and the kit's
                           IconButton is a plain function component. `Box
                           component='span'` is the kit's own way to get one —
@@ -453,19 +467,19 @@ export function LiveCallsWidget({
                           for a structural wrapper. */}
                       <Box component='span' sx={{ display: 'inline-flex' }}>
                         <IconButton
-                          icon='mdi:open-in-new'
+                          icon='mdi:note-edit-outline'
                           size='small'
-                          aria-label={`Details for ${call.callerName ?? call.from}`}
-                          onClick={() => openDetails(call)}
+                          aria-label={`Log note for ${call.callerName ?? call.from}`}
+                          onClick={() => openLogNote(call)}
                         />
                       </Box>
                     </Tooltip>
                   ) : (
                     <IconButton
-                      icon='mdi:open-in-new'
+                      icon='mdi:note-edit-outline'
                       size='small'
-                      aria-label={`Details for ${call.callerName ?? call.from}`}
-                      onClick={() => openDetails(call)}
+                      aria-label={`Log note for ${call.callerName ?? call.from}`}
+                      onClick={() => openLogNote(call)}
                     />
                   )
                 ) : null}
