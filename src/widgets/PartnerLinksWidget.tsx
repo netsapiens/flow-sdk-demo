@@ -13,8 +13,8 @@
  *
  * What it actually does is the part worth copying: a widget is a first-class
  * place to drive a host capability, not just to display numbers. This one opens
- * the shared side panel with the app's own content, exactly as the topbar Help
- * button does, and it reads `context.route` — a widget knows where it is
+ * the shared side panel with the app's own content — the example CRM's contact
+ * search, the same panel the topbar CRM launcher opens — and it reads `context.route` — a widget knows where it is
  * rendering, and on a domain-scoped dashboard `context.managing` tells it which
  * domain is on screen.
  */
@@ -22,7 +22,7 @@ import type { WidgetComponentProps } from '@netsapiens/flow-sdk';
 import { useSidePanel } from '@netsapiens/flow-sdk';
 
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
-import { QuickLinksPanel } from '../panels/QuickLinksPanel';
+import { CRM_ICON, CrmSearchPanel } from '../panels/CrmSearchPanel';
 
 /** The pages this app registers, as the reader would find them in the menus. */
 const PAGES: ReadonlyArray<{ label: string; path: string; menu: string }> = [
@@ -129,15 +129,15 @@ export function PartnerLinksWidget({
             variant='text'
             onClick={() =>
               open({
-                title: 'Help & Quick Links',
+                title: 'Example CRM',
                 subtitle: 'Opened from a dashboard widget',
                 width: 'sm',
-                icon: 'material-symbols-light:menu-book-outline-rounded',
-                component: QuickLinksPanel,
+                icon: CRM_ICON,
+                component: CrmSearchPanel,
               })
             }
           >
-            Open side panel
+            Find a CRM contact
           </Button>
         ) : null}
       </Stack>

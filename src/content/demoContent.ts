@@ -103,7 +103,7 @@ export const ZONES: ZoneInfo[] = [
     zone: 'table-row-actions',
     desc: 'Per-row action buttons in a table.',
     usedFor:
-      'Quick action on Call Logs rows → opens a Call details side panel.',
+      'Open in CRM on Call Logs rows → the far end’s CRM record in the side panel, or Create contact when there is no match.',
   },
   {
     zone: 'contacts-columns (dynamic column)',
@@ -128,7 +128,8 @@ export const ZONES: ZoneInfo[] = [
   {
     zone: 'topbar-actions',
     desc: 'The global top app bar (every page).',
-    usedFor: 'Help button → opens the Quick Links side panel.',
+    usedFor:
+      'Example CRM launcher → contact search over the app’s own CRM in the side panel.',
   },
   {
     zone: 'platform-admin-dashboard-widgets',
@@ -180,7 +181,7 @@ export interface WalkthroughItem {
 export const WALKTHROUGH: WalkthroughItem[] = [
   {
     label: 'Call Logs',
-    desc: 'Export button, analytics widget, toolbar tips, and a row quick-action that opens a Call details side panel.',
+    desc: 'Export button, analytics widget, toolbar tips, and an Open in CRM row action that looks the caller up in the example CRM.',
     nav: '/manage/call-logs',
     badge: 'primary',
   },
@@ -409,15 +410,19 @@ call.unsubscribe();`,
     code: `// From any extension, widget or column component, with its own context:
 const { open } = useSidePanel(context);
 
+// Here: a Call Logs row action that shows the caller as YOUR system knows
+// them — Flow already has its own call-details drawer.
+const party = externalParty(row);           // the far end of this call
 open({
-  title: 'Call details',
+  title: party.name || party.number,
   width: 'sm',
-  component: CallDetailsPanel,   // your React content
+  component: (props) => <CrmContactPanel {...props} party={party} />,
 });
 
-// CallDetailsPanel receives { context, close }
-function CallDetailsPanel({ context, close }) {
+// CrmContactPanel receives { context, close } plus what you closed over
+function CrmContactPanel({ context, close, party }) {
   const { Stack, Typography, Button } = context.ui;
+  const record = findCrmRecord(party.number);  // your CRM, not Flow's data
   return <Stack>…<Button onClick={close}>Close</Button></Stack>;
 }`,
   },

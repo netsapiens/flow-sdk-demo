@@ -120,3 +120,52 @@ export function normalizePhoneNumber(sipUri: string): string {
 export function lookupCrmRecord(phoneNumber: string): CrmRecord | undefined {
   return MOCK_CRM_DIRECTORY[phoneNumber];
 }
+
+/**
+ * Every key a raw number could be filed under in the directory above. Call-log
+ * rows carry the far end in whatever shape the switch recorded it — a SIP URI
+ * (`sip:631@host`), a bare extension, a ten- or eleven-digit number with or
+ * without its `+` — while the fixture keys external callers by E.164. Trying
+ * each spelling in turn is the honest version of what a real CRM connector does
+ * before it gives up on a match.
+ */
+export function crmLookupKeys(raw: string): string[] {
+  const bare = normalizePhoneNumber(raw.trim());
+  const digits = bare.replace(/\D/g, '');
+  const keys = [bare, digits, `+${digits}`];
+  if (digits.length === 10) keys.push(`+1${digits}`);
+  return [...new Set(keys.filter((k) => k && k !== '+'))];
+}
+
+/** First directory hit for any spelling of `raw`, with the key it matched on. */
+export function findCrmRecord(
+  raw: string,
+): { key: string; record: CrmRecord } | undefined {
+  for (const key of crmLookupKeys(raw)) {
+    const record = lookupCrmRecord(key);
+    if (record) return { key, record };
+  }
+  return undefined;
+}
+
+/**
+ * Case-insensitive search over name, company and number — what a CRM's own
+ * "find a contact" box does, against the fixture instead of a vendor API. An
+ * empty query returns the whole directory, which is small enough to list.
+ */
+export function searchCrmDirectory(
+  query: string,
+): Array<{ key: string; record: CrmRecord }> {
+  const q = query.trim().toLowerCase();
+  const qDigits = q.replace(/\D/g, '');
+  return Object.entries(MOCK_CRM_DIRECTORY)
+    .filter(
+      ([key, r]) =>
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        r.company.toLowerCase().includes(q) ||
+        // Digits only, so "555 123" finds +15551234567.
+        (qDigits.length > 0 && key.replace(/\D/g, '').includes(qDigits)),
+    )
+    .map(([key, record]) => ({ key, record }));
+}
