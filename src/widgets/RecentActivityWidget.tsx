@@ -1,8 +1,17 @@
 /**
- * Recent activity — a `kind: 'panel'` widget in the **activity** category, and
+ * CRM activity — a `kind: 'panel'` widget in the **activity** category, and
  * the demo's tabbed card.
  *
- * Registered in `App.tsx` §4. It is the same shape as the host's own *Overall
+ * Registered in `App.tsx` §4 under the id `recent-activity`, kept because the
+ * stored id is what every saved layout holds. Its feed changed: it used to list
+ * answered, missed and voicemail calls, which is the host's Call Logs (and the
+ * agent dashboard's call history) in a smaller box. It now lists what THIS APP
+ * did in Example CRM — contacts synced, leads created from callers nobody had a
+ * record for, call notes written back (`buildAppEventFeed` in
+ * `mocks/widgetActivity.ts`). An app's own events are the one feed no host
+ * screen can have, so they are what an app's activity card should carry.
+ *
+ * It is the same shape as the host's own *Overall
  * System Health*: a pill strip with a count on each tab, and a feed underneath
  * filtered to the selection. `ui.Tabs` draws the strip — the kit owns that
  * treatment so a contributed card gets the platform's tab styling for free —
@@ -31,9 +40,9 @@
 import type { WidgetComponentProps } from '@netsapiens/flow-sdk';
 import { useMemo, useState } from 'react';
 
-import type { ActivityKind } from '../mocks/widgetActivity';
+import type { AppEventKind } from '../mocks/widgetActivity';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
-import { buildActivityFeed } from '../mocks/widgetActivity';
+import { buildAppEventFeed } from '../mocks/widgetActivity';
 
 /**
  * Row label and dot per kind.
@@ -43,21 +52,20 @@ import { buildActivityFeed } from '../mocks/widgetActivity';
  * friends and draw its own dot; `ui.ActivityList` draws the row now.
  */
 const KIND_META: Record<
-  ActivityKind,
-  { label: string; tone: 'success' | 'error' | 'warning' | 'info' }
+  AppEventKind,
+  { label: string; tone: 'success' | 'primary' | 'info' }
 > = {
-  answered: { label: 'Answered', tone: 'success' },
-  missed: { label: 'Missed', tone: 'error' },
-  voicemail: { label: 'Voicemail', tone: 'warning' },
-  transferred: { label: 'Transferred', tone: 'info' },
+  'contact-synced': { label: 'Contact synced', tone: 'success' },
+  'lead-created': { label: 'Lead created', tone: 'primary' },
+  'note-written': { label: 'Note written back', tone: 'info' },
 };
 
 /** Tab order. `all` first, then the kinds, matching the host's health card. */
 const TABS: Array<{ value: string; label: string }> = [
   { value: 'all', label: 'All' },
-  { value: 'answered', label: 'Answered' },
-  { value: 'missed', label: 'Missed' },
-  { value: 'voicemail', label: 'Voicemail' },
+  { value: 'contact-synced', label: 'Synced' },
+  { value: 'lead-created', label: 'Leads' },
+  { value: 'note-written', label: 'Notes' },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -102,7 +110,7 @@ export function RecentActivityWidget({
       ? new Date(from)
       : new Date(toDate.getTime() - DAY_MS);
 
-    const filtered = buildActivityFeed(toDate).filter((event) => {
+    const filtered = buildAppEventFeed(toDate).filter((event) => {
       const at = new Date(event.at).getTime();
       return at >= fromDate.getTime() && at <= toDate.getTime();
     });
@@ -171,12 +179,16 @@ export function RecentActivityWidget({
         {ActivityList ? (
           <ActivityList
             width={widget.pixel.width}
-            emptyMessage={`Nothing ${tab === 'all' ? '' : `${tab} `}in this window.`}
+            emptyMessage={
+              tab === 'all'
+                ? 'Nothing written to the CRM in this window.'
+                : `No ${(TABS.find((t) => t.value === tab)?.label ?? tab).toLowerCase()} in this window.`
+            }
             rows={visible.map((event) => ({
               id: event.id,
               tone: KIND_META[event.kind].tone,
-              primary: `${KIND_META[event.kind].label} · ${event.agent}`,
-              secondary: event.party,
+              primary: `${KIND_META[event.kind].label} · ${event.subject}`,
+              secondary: `${event.detail} · ${event.agent}`,
               meta: formatClock(event.at),
             }))}
           />

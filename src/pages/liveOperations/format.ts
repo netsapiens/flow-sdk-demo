@@ -1,5 +1,10 @@
 /** Formatting and tone helpers shared by the Live Operations cards. */
-import type { StreamStatus } from '@netsapiens/flow-sdk';
+import type { CallParty, StreamStatus } from '@netsapiens/flow-sdk';
+
+/** A call party as a person reads it: name, then extension, then number. */
+export function party(p: CallParty): string {
+  return p.name || p.user || p.number || 'Unknown';
+}
 
 export type Tone =
   | 'success'

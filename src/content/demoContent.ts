@@ -135,13 +135,13 @@ export const ZONES: ZoneInfo[] = [
     zone: 'platform-admin-dashboard-widgets',
     desc: 'The Platform admin dashboard. A widget zone: it names a dashboard, not a slot on a page.',
     usedFor:
-      'Nine widgets covering every shape the contract has: panels (Recent activity, Call volume, CRM sync queue, Live calls, Demo app links), a container the app ships itself (Integration health) with its own two leaves, and a leaf inside the host’s stat card (Recordings processed). Add any of them from Customize.',
+      'Nine widgets covering every shape the contract has: panels (CRM activity, Call volume by CRM match, CRM sync queue, CRM call console, Demo app links), a container the app ships itself (Integration health) with its own two leaves, and a leaf inside the host’s stat card (Recordings processed). Add any of them from Customize.',
   },
   {
     zone: 'manage-dashboard-widgets',
     desc: 'The Manage dashboard. Listing a second zone offers the same widget on a second dashboard.',
     usedFor:
-      'Recent activity again — the user still adds it separately here, and its placement anchor does not exist on this dashboard, so it lands at the end.',
+      'CRM activity again — the user still adds it separately here, and its placement anchor does not exist on this dashboard, so it lands at the end.',
   },
 ];
 
@@ -309,7 +309,7 @@ sdk.registerWidget({
   // verification extracts string literals, and a helper call extracts as
   // nothing — the zone could then never be attributed to your app.
   zones: ['platform-admin-dashboard-widgets', 'manage-dashboard-widgets'],
-  title: 'Recent activity',
+  title: 'CRM activity',
   icon: 'mdi:pulse',
   category: 'activity',        // catalogue section + loading wireframe shape
   size: { default: 'half' },   // panels only

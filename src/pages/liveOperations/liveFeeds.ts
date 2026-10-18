@@ -1,5 +1,6 @@
 import type {
   AgentStatus,
+  CallActivity,
   CallRecord,
   FlowApiClient,
   QueueStats,
@@ -10,12 +11,12 @@ import type {
 
 import type { Outcomes, RecordDelivery, Sample } from './liveContext';
 import type { LiveSeed } from './liveSeed';
+import { accountOf } from './crmJoin';
 import {
   agentKey,
   agentTotalsOf,
   countOutcome,
   HISTORY_POINTS,
-  missedPctOf,
   NO_OUTCOMES,
   SAMPLE_MS,
   waitOf,
@@ -36,6 +37,10 @@ import { loadSeed } from './liveSeed';
  * page that ARE history — the trend chart and the call-record delivery log —
  * are built here instead, by the handlers passed to `retain`, which run for
  * the whole session whether or not the page is open.
+ *
+ * The trend is the cross-system one: calls in progress, and how many of them
+ * are with accounts the CRM knows (crmJoin.ts). So the calls handler keeps
+ * each call, not just its id — the parties are what the CRM is matched on.
  */
 export const LIVE_FEEDS = {
   queueStats: 'live:queue-stats',
@@ -101,8 +106,7 @@ class LiveHistory {
   private seedLoading: { domain: string; promise: Promise<LiveSeed> } | null =
     null;
   private trimmedAtSeed = false;
-  private calls = new Set<string>();
-  private registered = new Map<string, boolean>();
+  private calls = new Map<string, CallActivity>();
   private available = new Map<string, boolean>();
   private lastRecord = new Map<string, CallRecord>();
 
@@ -161,7 +165,7 @@ class LiveHistory {
     );
     retain(LIVE_FEEDS.calls, (s) =>
       s.calls.onDomainCalls({
-        updated: (c) => this.calls.add(c.callId),
+        updated: (c) => this.calls.set(c.callId, c),
         ended: (c) => this.calls.delete(c.callId),
       }),
     );
@@ -170,9 +174,9 @@ class LiveHistory {
         this.available.set(p.user, p.presence === 'open'),
       ),
     );
-    retain(LIVE_FEEDS.devices, (s) =>
-      s.devices.onDomain((d) => this.registered.set(d.device, d.registered)),
-    );
+    // Nothing sampled from phones: the page only joins them to agents (an
+    // agent in a queue whose phone dropped), which needs current state alone.
+    retain(LIVE_FEEDS.devices, (s) => s.devices.onDomain(noop));
     retain(LIVE_FEEDS.notifications, (s) =>
       s.notifications.onNotification(noop),
     );
@@ -243,9 +247,6 @@ class LiveHistory {
       if (!this.queues.has(q.queue)) this.queues.set(q.queue, q);
     for (const a of seed.agents)
       if (!this.agents.has(agentKey(a))) this.agents.set(agentKey(a), a);
-    for (const d of seed.devices)
-      if (!this.registered.has(d.device))
-        this.registered.set(d.device, d.registered);
     if (!this.trimmedAtSeed) {
       this.trimmedAtSeed = true;
       this.publish({ history: [] });
@@ -270,7 +271,6 @@ class LiveHistory {
     }
     if (key === LIVE_FEEDS.agents) this.agents.clear();
     if (key === LIVE_FEEDS.calls) this.calls.clear();
-    if (key === LIVE_FEEDS.devices) this.registered.clear();
     if (key === LIVE_FEEDS.presence) this.available.clear();
     if (key === LIVE_FEEDS.records) {
       this.lastRecord.clear();
@@ -289,7 +289,10 @@ class LiveHistory {
     const count = (map: Map<string, boolean>) =>
       [...map.values()].filter(Boolean).length;
     const now = Date.now();
-    const { outcomes } = this.snapshot;
+    const accounts = [...this.calls.values()].flatMap((c) => {
+      const account = accountOf(c);
+      return account ? [account] : [];
+    });
     const sample: Sample = {
       label: new Date().toLocaleTimeString([], {
         hour: '2-digit',
@@ -297,6 +300,8 @@ class LiveHistory {
         second: '2-digit',
       }),
       calls: this.calls.size,
+      known: accounts.length,
+      vip: accounts.filter((a) => a.record.tier === 'vip').length,
       waiting: queues.reduce((n, q) => n + q.waiting, 0),
       longestWait: queues.reduce((n, q) => Math.max(n, waitOf(q, now)), 0),
       agentsFree:
@@ -305,10 +310,7 @@ class LiveHistory {
           [...this.agents.values()],
           this.seedCache?.seed.big ?? false,
         )?.free ?? null,
-      registered: count(this.registered),
       available: count(this.available),
-      answered: outcomes.answered,
-      missedPct: missedPctOf(outcomes),
     };
     this.publish({
       history: [...this.snapshot.history, sample].slice(-HISTORY_POINTS),

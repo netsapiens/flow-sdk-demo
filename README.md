@@ -91,7 +91,7 @@ retained live feeds** (`sdk.streams`), an **on-demand side panel**, and a
 | ------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Flow SDK Demo       | Apps                           | The overview/walkthrough page (`pages/DemoPage.tsx`).                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Component Showcase  | Apps                           | Reference for every shared MUI Aurora component (`pages/ComponentShowcasePage.tsx`).                                                                                                                                                                                                                                                                                                                                                                                             |
-| Live Operations     | Apps                           | **The `sdk.streams` example.** A live wallboard of queues, agents, domain calls, call records, presence and phones, each card showing its stream's status — including the host's refusal for users whose scope does not allow a feed (`pages/liveOperations/LiveOperationsPage.tsx`).                                                                                                                                                                                            |
+| Live Operations     | Apps                           | **The `sdk.streams` example.** Leads with what the host cannot show: every feed's status (including the host's refusal for users whose scope does not allow it), Flow's live calls joined to the mock CRM (VIPs and open deals on the line, agents and the account on their call), and the call-record update lifecycle (`pages/liveOperations/LiveOperationsPage.tsx`).                                                                                                         |
 | Example CRM         | Apps                           | A vendor dashboard page built on `templates.DashboardTemplate`: the host's grid, card frames and range control on a page the app owns (`pages/VendorDashboardPage.tsx`).                                                                                                                                                                                                                                                                                                         |
 | CRM Integration     | Manage (after _Call Logs_)     | **Platform-level** CRM connection and settings — connection status, which domains sync, field mapping, last sync (sample data). Registered into the Manage menu to show the Manage tree can be extended, not just Apps (`pages/CrmIntegrationPage.tsx`).                                                                                                                                                                                                                         |
 | CRM Sync            | Manage, **inside a domain**    | **Domain-scoped.** Registered once at `/manage/:domain`, so it mounts under whichever domain an admin has drilled into and reads that domain with `useManagingDomain()` — one registration, every domain (`pages/DomainCrmSyncPage.tsx`).                                                                                                                                                                                                                                        |
@@ -276,17 +276,27 @@ widgets go through the same registry.
 The nine here are chosen to cover the contract, not to fill a grid — read down
 the table and every axis of `WidgetRegistration` appears at least once.
 
-| Widget                   | Kind                              | Category   | What it is here to show                                                                                                                         | Component                            |
-| ------------------------ | --------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| **Recent activity**      | `panel`                           | `activity` | The baseline: `refreshPolicy: 'shared-range'`, `widget.pixel`, `actions`. Offered on two dashboards                                             | `widgets/RecentActivityWidget.tsx`   |
-| **Call volume**          | `panel`                           | `charts`   | Full width, `height: 5`, and `metric` provenance — which the host frame draws as a tooltip beside the title                                     | `widgets/CallVolumeChart.tsx`        |
-| **CRM sync queue**       | `panel`                           | `tables`   | `refreshPolicy: 'own-cadence'` — its own timer, no `widget.range` — and the one place `actions.refresh()` earns a button. Built from `ui.Table` | `widgets/SyncQueueTable.tsx`         |
-| **Live calls**           | `panel`                           | `stats`    | `refreshPolicy: 'realtime'` fed by `sdk.streams.softphone`, plus `requiredPermissions` and a `condition`                                        | `widgets/LiveCallsWidget.tsx`        |
-| **Integration health**   | `panel` + `acceptsLeaves`         | `other`    | A **container the app ships itself**: the host draws its body and the two leaves below reorder inside it                                        | `widgets/IntegrationHealthPanel.tsx` |
-| **Contacts synced**      | `leaf` (`leafOf: 'demo-insight'`) | `stats`    | A leaf in the app's **own** container                                                                                                           | `widgets/SyncedContactsStat.tsx`     |
-| **Sync failures**        | `leaf` (`leafOf: 'demo-insight'`) | `stats`    | The second leaf — one proves they land, two prove they reorder                                                                                  | `widgets/SyncFailuresStat.tsx`       |
-| **Demo app links**       | `panel`                           | `other`    | **No** `refreshPolicy` at all, and a widget driving a host capability (it opens the side panel)                                                 | `widgets/PartnerLinksWidget.tsx`     |
-| **Recordings processed** | `leaf` (`leafOf: 'stat'`)         | `stats`    | A leaf in the **host's** existing stat card, alongside the native stat blocks                                                                   | `widgets/RecordedCallsStat.tsx`      |
+| Widget                       | Kind                              | Category   | What it is here to show                                                                                                                                                                        | Component                            |
+| ---------------------------- | --------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **CRM activity**             | `panel`                           | `activity` | The baseline: `refreshPolicy: 'shared-range'`, `widget.pixel`, `actions`, tabs. Offered on two dashboards. Lists the app's own CRM events (contacts synced, leads created, notes written back) | `widgets/RecentActivityWidget.tsx`   |
+| **Call volume by CRM match** | `panel`                           | `charts`   | Full width, `height: 5`, and `metric` provenance — which the host frame draws as a tooltip beside the title. Charts calls the CRM recognised vs not                                            | `widgets/CallVolumeChart.tsx`        |
+| **CRM sync queue**           | `panel`                           | `tables`   | `refreshPolicy: 'own-cadence'` — its own timer, no `widget.range` — and the one place `actions.refresh()` earns a button. Built from `ui.Table`                                                | `widgets/SyncQueueTable.tsx`         |
+| **CRM call console**         | `panel`                           | `activity` | `refreshPolicy: 'realtime'` fed by `sdk.streams.softphone`, plus `requiredPermissions` and a `condition`. Each call as its CRM account, with a **Log note** side panel per row                 | `widgets/LiveCallsWidget.tsx`        |
+| **Integration health**       | `panel` + `acceptsLeaves`         | `other`    | A **container the app ships itself**: the host draws its body and the two leaves below reorder inside it                                                                                       | `widgets/IntegrationHealthPanel.tsx` |
+| **Contacts synced**          | `leaf` (`leafOf: 'demo-insight'`) | `stats`    | A leaf in the app's **own** container                                                                                                                                                          | `widgets/SyncedContactsStat.tsx`     |
+| **Sync failures**            | `leaf` (`leafOf: 'demo-insight'`) | `stats`    | The second leaf — one proves they land, two prove they reorder                                                                                                                                 | `widgets/SyncFailuresStat.tsx`       |
+| **Demo app links**           | `panel`                           | `other`    | **No** `refreshPolicy` at all, and a widget driving a host capability (it opens the side panel)                                                                                                | `widgets/PartnerLinksWidget.tsx`     |
+| **Recordings processed**     | `leaf` (`leafOf: 'stat'`)         | `stats`    | A leaf in the **host's** existing stat card, alongside the native stat blocks                                                                                                                  | `widgets/RecordedCallsStat.tsx`      |
+
+**Content an app's widget should carry is content the host cannot.** Three of
+these used to be calls data the platform already draws — answered vs missed
+(the host's calls chart), a feed of answered and missed calls (Call Logs), and
+a list of calls in progress (Active Calls). They teach the same contract but now
+show the integration's own data: calls split by whether the CRM recognised the
+caller, the events the app wrote to the CRM, and live calls as CRM accounts
+with a note-back action. Their registration ids (`call-volume`,
+`recent-activity`, `live-calls`) and test ids are unchanged, because the stored
+id is what every saved layout holds; only titles and content moved.
 
 The two leaf rows are the interesting pair. _Recordings processed_ proves a
 remote app can contribute _into_ a host container and reorder within it;
@@ -308,7 +318,7 @@ sdk.registerWidget({
   id: 'recent-activity', // a PLAIN name — the host stamps the app prefix
   kind: 'panel',
   zones: ['platform-admin-dashboard-widgets', 'manage-dashboard-widgets'],
-  title: 'Recent activity',
+  title: 'CRM activity',
   icon: 'mdi:pulse',
   category: 'activity', // catalogue section + the loading wireframe's shape
   size: { default: 'half', resizable: true }, // panels only
@@ -369,18 +379,18 @@ draws around you is worth knowing before you draw anything yourself:
 resolved timestamps and never a preset label; `widget.pixel` is the box the host
 derived from the grid arithmetic, which a chart needs because ECharts sizes to
 its container at init and does not observe resize. `actions` is
-`remove` / `resize` / `refresh`; the Recent activity panel calls `resize()` from
+`remove` / `resize` / `refresh`; the CRM activity panel calls `resize()` from
 an inline control and `remove()` from its empty state.
 
 `refreshPolicy` is a declaration of where your data comes from, and the host acts
 on it — all three appear here, plus the fourth case of declaring nothing:
 
-| Policy           | What the host does                                       | Here                         |
-| ---------------- | -------------------------------------------------------- | ---------------------------- |
-| `'shared-range'` | Hands you `widget.range` as resolved from/to timestamps  | Recent activity, Call volume |
-| `'own-cadence'`  | Hands you no range; you own the timer                    | CRM sync queue               |
-| `'realtime'`     | Hands you no range; data arrives by push (`sdk.streams`) | Live calls                   |
-| _omitted_        | Nothing — for a widget whose content does not go stale   | Demo app links               |
+| Policy           | What the host does                                       | Here                                   |
+| ---------------- | -------------------------------------------------------- | -------------------------------------- |
+| `'shared-range'` | Hands you `widget.range` as resolved from/to timestamps  | CRM activity, Call volume by CRM match |
+| `'own-cadence'`  | Hands you no range; you own the timer                    | CRM sync queue                         |
+| `'realtime'`     | Hands you no range; data arrives by push (`sdk.streams`) | CRM call console                       |
+| _omitted_        | Nothing — for a widget whose content does not go stale   | Demo app links                         |
 
 Declaring one you do not need is a claim the host acts on: it hands you a range
 and invites a dependency on a control that has nothing to do with your card.
@@ -406,7 +416,13 @@ _is_ the subscription, and every method returns a handle with `status`,
 `onStatus()` and `unsubscribe()`.
 
 **Live Operations** (`/apps/live-operations`, `pages/liveOperations/`) is the
-worked example: a wallboard of eight feeds. `liveFeeds.ts` **retains** each one
+worked example: eight feeds, read for what the host cannot show with them. It
+does not redraw the supervisor dashboard, the wallboard or the registrations
+page — the host ships those. It leads with each feed's status as the host
+reports it, and joins Flow's live calls to the mock CRM (`crmJoin.ts`,
+`crmViews.tsx`): VIPs and open deals on the line, callers not in the CRM, each
+agent with the account on their call and whether their phone is registered.
+`liveFeeds.ts` **retains** each one
 when the app starts, so they keep collecting while the page is closed, and the
 page attaches to them with `useStream(…, { retain })` (`liveState.tsx`):
 
@@ -426,26 +442,40 @@ const status = useStream(
 );
 ```
 
-| Card                | Call                                                                | Grant                |
-| ------------------- | ------------------------------------------------------------------- | -------------------- |
-| Queues              | `queues.onDomainQueues({ stats })`                                  | `queues`             |
-| Agents              | `queues.onDomainQueues({ agentUpdated, agentAdded, agentRemoved })` | `queues`             |
-| Live calls          | `calls.onDomainCalls({ updated, ended })`                           | `calls.domain`       |
-| Presence            | `presence.onDomain(update)`                                         | `presence`           |
-| Phones              | `devices.onDomain(update)`                                          | `devices`            |
-| Notifications       | `notifications.onNotification(update)`                              | `notifications.read` |
-| User record changes | `subscribers.onDomain(update)`                                      | `subscribers`        |
-| Call records        | `cdrs.onDomain({ completed, updated })`                             | `cdrs`               |
+| Feed                | Call                                                                | Grant                | Where it shows                                      |
+| ------------------- | ------------------------------------------------------------------- | -------------------- | --------------------------------------------------- |
+| Queue stats         | `queues.onDomainQueues({ stats })`                                  | `queues`             | Queues table, with CRM accounts per queue           |
+| Agents              | `queues.onDomainQueues({ agentUpdated, agentAdded, agentRemoved })` | `queues`             | Agents and the account on their call                |
+| Domain calls        | `calls.onDomainCalls({ updated, ended })`                           | `calls.domain`       | Customers on the line, Not in the CRM, the trend    |
+| Presence            | `presence.onDomain(update)`                                         | `presence`           | People tab                                          |
+| Phones              | `devices.onDomain(update)`                                          | `devices`            | The agents table's Phone column (no tab of its own) |
+| Notifications       | `notifications.onNotification(update)`                              | `notifications.read` | Overview, Notifications tab                         |
+| User record changes | `subscribers.onDomain(update)`                                      | `subscribers`        | People tab                                          |
+| Call records        | `cdrs.onDomain({ completed, updated })`                             | `cdrs`               | Call records tab, flagged when ready to write back  |
+
+The page had a Phones tab until 3.0.14. It listed device registrations, which
+is the host's own registrations page with less in it, so it went; the phone
+feed stayed, because "this agent is taking queue calls on a phone that dropped
+off" takes the agent feed and the device feed together, and no host screen
+joins them.
 
 What the page is there to show:
 
-- **Status is part of the UI.** Each card prints its stream's status. A `refused`
-  stream carries a `message` the host wrote for the user — the domain-calls card
-  is refused for anyone below Office Manager, and says so instead of sitting empty.
+- **Status is part of the UI.** The Overview opens on a table of all eight
+  feeds, and each card prints its own stream's status too. A `refused` stream
+  carries a `reason` and a `message` the host wrote for the user — the
+  domain-calls feed is refused for anyone below Office Manager, and says so
+  instead of sitting empty.
+- **The value is in the join.** A stream says who is on a call; only the
+  partner's system says that caller is a VIP with a renewal in negotiation.
+  `crmJoin.ts` is pure functions over stream payloads and the CRM, shared by
+  the cards and by the trend sampler in `liveFeeds.ts`.
 - **Records change after the call.** A call record arrives on `completed` when
   the call ends, then again on `updated` as its recording, call quality (MOS),
   summary and disposition land. The Call records tab keeps the latest version
-  of each record and lists every delivery with the fields that changed.
+  of each record and lists every delivery with the fields that changed — and
+  marks the update that carries an agent's disposition or notes on a CRM
+  account, which is the moment an integration writes back.
 - **`live.snapshot`** says whether the host replayed what it already held. When
   it is `false` the feed sends changes only. Queue stats, agents and phones are
   like that, so `liveSeed.ts` reads their current state once from the API
@@ -465,12 +495,12 @@ What the page is there to show:
 The app's own softphone feeds the CRM enrichment: `App.tsx` subscribes to
 `sdk.streams.softphone.onCallStarted / onCallAnswered / onCallMissed /
 onCallEnded`, `services/callEnrichment.ts` looks the caller up in the mock CRM,
-and the result reaches `CallerInfoWidget` and the Live Calls dashboard card.
+and the result reaches `CallerInfoWidget` and the CRM call console dashboard card.
 
 The full reference — every method, its grant, who may see what, and the status
 model — ships in the SDK package as `STREAMS.md`: `node_modules/@netsapiens/flow-sdk/STREAMS.md`, or the [Code tab on npm](https://www.npmjs.com/package/@netsapiens/flow-sdk?activeTab=code).
 
-The enriched call reaches `CallerInfoWidget` and the Live Calls card through
+The enriched call reaches `CallerInfoWidget` and the CRM call console through
 `onCallChanges()` in `services/callEnrichment.ts`: a listener set in the app's
 own bundle, beside the `activeCallsStore` it keeps. That is the pattern for an
 app talking to its own components. The SDK has no event bus for it (it left the
@@ -753,10 +783,11 @@ src/
   content/
     demoContent.ts            # Static content for DemoPage (capabilities, zones, patterns, snippets)
     crmIntegrationContent.ts  # Copy for the CRM Integration page
+    liveOperationsContent.ts  # Tabs and card copy for Live Operations
   extensions/                 # One component per zone extension
   widgets/                    # One component per dashboard widget (panels, leaves, a container)
   mocks/                      # Demo fixtures (people, CRM, recent calls, sample table) — see mocks/README.md
-  panels/                     # Side-panel content (CallDetails, QuickLinks)
+  panels/                     # Side-panel content (CallDetails, LogNote, QuickLinks)
   services/
     callEnrichment.ts         # Call-event → CRM enrichment + shared active-calls store
   pages/

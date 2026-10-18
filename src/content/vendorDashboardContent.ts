@@ -50,13 +50,14 @@ export interface VendorDashboardCard {
 export const VENDOR_DASHBOARD_CARDS: VendorDashboardCard[] = [
   {
     id: 'vendor-call-volume',
-    title: 'Call volume',
-    description: 'Answered vs missed calls across the selected range.',
+    title: 'Call volume by CRM match',
+    description:
+      'Calls whose caller is in Example CRM vs not, across the selected range.',
     size: 'full',
     height: 4,
     refreshPolicy: 'shared-range',
     metric: {
-      formula: 'count(call_events) by bucket, split by disposition',
+      formula: 'count(calls) by bucket, split by CRM match on the caller',
       source: 'Demo fixture — mocks/widgetActivity.ts',
       cadence: 'On range change',
     },
@@ -104,8 +105,8 @@ export const VENDOR_DASHBOARD_CARDS: VendorDashboardCard[] = [
     // so two cards of the same declared height sit level; putting the datagrid
     // here instead dragged the ring to 1016px for a shape that needs 400.
     id: 'vendor-recent-activity',
-    title: 'Recent activity',
-    description: 'Recent call activity for the selected range.',
+    title: 'CRM activity',
+    description: 'What the integration wrote to Example CRM in this range.',
     size: 'half',
     height: 4,
     refreshPolicy: 'shared-range',
@@ -124,8 +125,9 @@ export const VENDOR_DASHBOARD_CARDS: VendorDashboardCard[] = [
   },
   {
     id: 'vendor-live-calls',
-    title: 'Live call console',
-    description: 'Calls in progress, pushed as they ring.',
+    title: 'CRM call console',
+    description:
+      'Your calls in progress as Example CRM accounts, with a note per call.',
     size: 'full',
     height: 5,
     refreshPolicy: 'realtime',

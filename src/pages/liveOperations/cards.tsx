@@ -2,10 +2,20 @@
  * Live Operations cards. Every one is drawn from kit components: StatBlock,
  * Chart, Donut, ActivityList, Table, Avatar, Chip, List, Tooltip, and the host's
  * empty state. Data comes from LiveProvider; nothing here subscribes.
+ *
+ * The CRM joins live in crmViews.tsx and the feed status table in
+ * feedHealth.tsx. What stays here is the plumbing every card shares (`Stat`,
+ * `party`), the queue table — whose columns now count the CRM accounts in
+ * each queue — and the feeds the host has no screen for at all: call-record
+ * updates as they land, notifications, user record changes, presence.
+ *
+ * Gone, deliberately: the raw domain-calls table, the phones table and the
+ * answered / missed tiles. The host's Active Calls, device registrations and
+ * call-center reports draw those from the same data, and an app that redraws
+ * them teaches nothing a partner needs.
  */
 import type {
   ActivityRow,
-  CallActivity,
   CallRecord,
   FlowNotification,
   StreamStatus,
@@ -16,23 +26,18 @@ import { useFlowContext } from '@netsapiens/flow-sdk';
 
 import type { Tone } from './format';
 import type { Sample } from './liveContext';
+import { accountBetween, accountsOnTheLine, isWaiting } from './crmJoin';
 import {
   chipColor,
   CRITICAL_WAIT_SEC,
   fmtSeconds,
   initials,
   isBlocked,
-  since,
+  party,
   waitTone,
 } from './format';
-import {
-  agentKey,
-  missedPctOf,
-  QueuePickContext,
-  useLive,
-  waitOf,
-} from './liveContext';
-import { CardBody, Empty } from './parts';
+import { QueuePickContext, useLive, waitOf } from './liveContext';
+import { CardBody, Empty, StreamNote } from './parts';
 
 // ── Headline leaves ──────────────────────────────────────────────────────────
 
@@ -46,7 +51,12 @@ function deltaOf(history: Sample[], key: keyof Omit<Sample, 'label'>) {
   return { pct: ((latest - before) / before) * 100, label: 'vs 5 min ago' };
 }
 
-function Stat({
+/**
+ * A headline figure with its five-minute change, or "not available" when the
+ * stream behind it is blocked. The trend history (liveFeeds.ts) supplies the
+ * delta, which is why a metric has to be a `Sample` key.
+ */
+export function Stat({
   status,
   metric,
   value,
@@ -146,67 +156,6 @@ export function AgentsFreeStat() {
   );
 }
 
-export function CallsStat() {
-  const { calls, callStatus } = useLive();
-  const connected = calls.filter((c) => c.state === 'active').length;
-  return (
-    <Stat
-      status={callStatus}
-      metric='calls'
-      value={calls.length}
-      caption={`${connected} connected`}
-      tone='primary'
-    />
-  );
-}
-
-export function PhonesStat() {
-  const { devices, deviceStatus } = useLive();
-  const registered = devices.filter((d) => d.registered).length;
-  return (
-    <Stat
-      status={deviceStatus}
-      metric='registered'
-      value={registered}
-      caption={`of ${devices.length} seen`}
-      tone={registered === devices.length ? 'success' : 'warning'}
-    />
-  );
-}
-
-/**
- * Inbound outcomes since the app loaded (running totals, see liveFeeds.ts).
- * Records are domain admins only, so everyone else sees "not available".
- */
-export function AnsweredStat() {
-  const { outcomes, recordStatus } = useLive();
-  const { answered, missed } = outcomes;
-  return (
-    <Stat
-      status={recordStatus}
-      metric='answered'
-      value={answered}
-      caption={`of ${answered + missed} inbound`}
-      tone='primary'
-    />
-  );
-}
-
-export function MissedRateStat() {
-  const { outcomes, recordStatus } = useLive();
-  const { missed } = outcomes;
-  const missedPct = missedPctOf(outcomes);
-  return (
-    <Stat
-      status={recordStatus}
-      metric='missedPct'
-      value={`${missedPct.toFixed(1)}%`}
-      caption={`${missed} missed`}
-      tone={missedPct >= 10 ? 'error' : missedPct >= 5 ? 'warning' : 'success'}
-    />
-  );
-}
-
 export function AvailableStat() {
   const { presence, presenceStatus } = useLive();
   const open = presence.filter((p) => p.presence === 'open').length;
@@ -237,6 +186,9 @@ export function ActivityChart() {
       />
     );
   }
+  // History the host cannot keep for you: a retained feed hands back current
+  // state, so liveFeeds.ts samples the CRM join in `retain`'s own handlers,
+  // which run whether or not this page is open.
   return (
     <Chart
       kind='area'
@@ -244,9 +196,9 @@ export function ActivityChart() {
       data={history.map((sample) => ({ ...sample }))}
       xKey='label'
       series={[
-        { key: 'calls', label: 'Calls in progress', tone: 'primary' },
-        { key: 'waiting', label: 'Callers waiting', tone: 'warning' },
-        { key: 'agentsFree', label: 'Agents free', tone: 'success' },
+        { key: 'calls', label: 'Calls in progress', tone: 'neutral' },
+        { key: 'known', label: 'With a CRM account', tone: 'primary' },
+        { key: 'vip', label: 'With a VIP', tone: 'warning' },
       ]}
     />
   );
@@ -272,9 +224,16 @@ function Toned({ tone, children }: { tone: Tone; children: ReactNode }) {
   );
 }
 
+/**
+ * The queues, with what the host's own queue board cannot add: how many of the
+ * calls through each one are CRM accounts, and how many of the callers still
+ * waiting are VIPs. Joined on `through.user` — a domain call routed through a
+ * queue names it there. The counts are domain calls, so they are empty (and
+ * say so in the footer) for anyone the calls feed refuses.
+ */
 export function QueuesCard() {
   const { ui } = useFlowContext();
-  const { queues, queueStatus, now, queueName } = useLive();
+  const { queues, queueStatus, now, queueName, calls, callStatus } = useLive();
   const pick = useContext(QueuePickContext);
   const { Table, TableHead, TableBody, TableRow, TableCell, Typography } =
     ui ?? {};
@@ -287,6 +246,9 @@ export function QueuesCard() {
     !Typography
   )
     return null;
+  const accounts = accountsOnTheLine(calls);
+  const inQueue = (queue: string) =>
+    accounts.filter((a) => a.call.through?.user === queue);
   // Busiest first, the way a supervisor scans it.
   const rows = [...queues].sort(
     (a, b) =>
@@ -305,13 +267,18 @@ export function QueuesCard() {
               <TableCell>Queue</TableCell>
               <TableCell align='right'>Waiting</TableCell>
               <TableCell align='right'>Longest wait</TableCell>
-              <TableCell align='right'>Active</TableCell>
+              <TableCell align='right'>CRM accounts</TableCell>
+              <TableCell align='right'>VIPs waiting</TableCell>
               <TableCell align='right'>Agents free / in</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {rows.map((q) => {
               const wait = waitOf(q, now);
+              const known = inQueue(q.queue);
+              const vipsWaiting = known.filter(
+                (a) => a.record.tier === 'vip' && isWaiting(a.call),
+              ).length;
               return (
                 <TableRow
                   key={q.queue}
@@ -346,7 +313,14 @@ export function QueuesCard() {
                     </Toned>
                   </TableCell>
                   <TableCell align='right'>
-                    <Toned tone='neutral'>{q.activeCalls}</Toned>
+                    <Toned tone={known.length ? 'primary' : 'neutral'}>
+                      {isBlocked(callStatus) ? '—' : known.length}
+                    </Toned>
+                  </TableCell>
+                  <TableCell align='right'>
+                    <Toned tone={vipsWaiting ? 'error' : 'neutral'}>
+                      {isBlocked(callStatus) ? '—' : vipsWaiting}
+                    </Toned>
                   </TableCell>
                   <TableCell align='right'>
                     <Toned
@@ -361,150 +335,9 @@ export function QueuesCard() {
           </TableBody>
         </Table>
       )}
-    </CardBody>
-  );
-}
-
-function agentTone(status: string, activeCalls: number): Tone {
-  if (activeCalls > 0) return 'primary';
-  return status === 'available' ? 'success' : 'neutral';
-}
-
-export function AgentsCard() {
-  const { ui } = useFlowContext();
-  const { agents, agentStatus, nameOf } = useLive();
-  const {
-    Table,
-    TableHead,
-    TableBody,
-    TableRow,
-    TableCell,
-    Chip,
-    Avatar,
-    Stack,
-    Typography,
-  } = ui ?? {};
-  if (
-    !Table ||
-    !TableHead ||
-    !TableBody ||
-    !TableRow ||
-    !TableCell ||
-    !Chip ||
-    !Avatar ||
-    !Stack ||
-    !Typography
-  ) {
-    return null;
-  }
-  return (
-    <CardBody
-      status={agentStatus}
-      call='queues.onDomainQueues({ agentUpdated, agentAdded, agentRemoved })'
-    >
-      {agents.length === 0 ? (
-        <Empty icon='mdi:headset' title='No agent changes yet' />
-      ) : (
-        <Table size='small'>
-          <TableHead>
-            <TableRow>
-              <TableCell>Agent</TableCell>
-              <TableCell>Queue</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align='right'>Calls</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {agents.map((a) => (
-              <TableRow key={agentKey(a)}>
-                <TableCell>
-                  <Stack direction='row' spacing={1} alignItems='center'>
-                    <Avatar sx={{ width: 28, height: 28, fontSize: 12 }}>
-                      {initials(nameOf(a.user))}
-                    </Avatar>
-                    <Typography variant='body2'>{nameOf(a.user)}</Typography>
-                  </Stack>
-                </TableCell>
-                <TableCell>{a.queue}</TableCell>
-                <TableCell>
-                  <Chip
-                    size='small'
-                    variant='outlined'
-                    label={a.activeCalls > 0 ? 'On a call' : a.status}
-                    color={chipColor(agentTone(a.status, a.activeCalls))}
-                  />
-                </TableCell>
-                <TableCell align='right'>{a.activeCalls}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </CardBody>
-  );
-}
-
-// ── Calls ────────────────────────────────────────────────────────────────────
-
-function party(p: CallActivity['from']): string {
-  return p.name || p.user || p.number || 'Unknown';
-}
-
-function callTone(c: CallActivity): Tone {
-  return c.state === 'active'
-    ? 'success'
-    : c.state === 'held'
-      ? 'warning'
-      : 'info';
-}
-
-export function CallsCard() {
-  const { ui } = useFlowContext();
-  const { calls, callStatus, now } = useLive();
-  const { Table, TableHead, TableBody, TableRow, TableCell, Chip } = ui ?? {};
-  if (!Table || !TableHead || !TableBody || !TableRow || !TableCell || !Chip)
-    return null;
-  return (
-    <CardBody
-      status={callStatus}
-      call='calls.onDomainCalls({ updated, ended })'
-    >
-      {calls.length === 0 ? (
-        <Empty icon='mdi:phone-in-talk' title='No calls in progress' />
-      ) : (
-        <Table size='small'>
-          <TableHead>
-            <TableRow>
-              <TableCell>From</TableCell>
-              <TableCell>To</TableCell>
-              <TableCell>Via</TableCell>
-              <TableCell>State</TableCell>
-              <TableCell align='right'>Duration</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {calls.map((c) => (
-              <TableRow key={c.callId}>
-                <TableCell>{party(c.from)}</TableCell>
-                <TableCell>{party(c.to)}</TableCell>
-                <TableCell>
-                  {c.through ? c.through.name || c.through.user : '—'}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    size='small'
-                    label={c.state}
-                    color={chipColor(callTone(c))}
-                  />
-                </TableCell>
-                <TableCell align='right'>
-                  {fmtSeconds(since(c.answeredAt ?? c.startedAt, now))}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      {isBlocked(callStatus) ? (
+        <StreamNote status={callStatus} call='calls.onDomainCalls' />
+      ) : null}
     </CardBody>
   );
 }
@@ -653,6 +486,7 @@ export function CallRecordsCard() {
               <TableCell>Direction</TableCell>
               <TableCell>From</TableCell>
               <TableCell>To</TableCell>
+              <TableCell>CRM account</TableCell>
               <TableCell align='right'>Duration</TableCell>
               <TableCell>Disposition</TableCell>
               <TableCell>Recording</TableCell>
@@ -663,6 +497,7 @@ export function CallRecordsCard() {
             {records.map((r) => {
               const dir = direction(r);
               const rec = recording(r);
+              const account = accountBetween(r);
               return (
                 <TableRow key={r.recordId}>
                   <TableCell>
@@ -686,6 +521,9 @@ export function CallRecordsCard() {
                     {r.through
                       ? ` via ${r.through.name || r.through.user}`
                       : ''}
+                  </TableCell>
+                  <TableCell>
+                    {account ? account.record.company : '—'}
                   </TableCell>
                   <TableCell align='right'>
                     {fmtSeconds(r.durationSec)}
@@ -720,32 +558,50 @@ export function CallRecordsCard() {
   );
 }
 
+/** The fields an agent writes after a call, which a CRM wants back. */
+const WRITE_BACK = new Set(['disposition', 'reason', 'notes', 'summary']);
+
 /**
  * Every delivery as it arrives, so a record's later updates are visible: the
  * call ends (`completed`), then the recording, call quality, summary and
  * disposition land one by one (`updated`).
+ *
+ * This is the lifecycle a CRM integration actually has to handle, and the
+ * host's Call Logs never shows it: a record is not final when the call ends.
+ * When an update carries something an agent wrote (disposition, notes, the AI
+ * summary) on a call with a CRM account, the row says it is ready to write
+ * back — the moment a real integration would POST the activity to the CRM.
  */
 export function RecordDeliveriesCard() {
   const { ui } = useFlowContext();
   const { recordDeliveries, recordStatus } = useLive();
   const ActivityList = ui?.ActivityList;
   if (!ActivityList) return null;
-  const rows: ActivityRow[] = recordDeliveries.map((d) => ({
-    id: d.id,
-    primary: `${party(d.record.from)} → ${party(d.record.to)}`,
-    secondary:
-      d.kind === 'completed'
-        ? 'Call ended'
-        : d.changed.length
-          ? `Updated: ${d.changed.join(', ')}`
-          : 'Updated',
-    meta: new Date(d.receivedAt).toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }),
-    tone: d.kind === 'completed' ? 'primary' : 'success',
-  }));
+  const rows: ActivityRow[] = recordDeliveries.map((d) => {
+    const account = accountBetween(d.record);
+    const writeBack =
+      account && d.changed.some((field) => WRITE_BACK.has(field));
+    return {
+      id: d.id,
+      primary: account
+        ? `${party(d.record.from)} → ${party(d.record.to)} · ${account.record.company}`
+        : `${party(d.record.from)} → ${party(d.record.to)}`,
+      secondary:
+        d.kind === 'completed'
+          ? 'Call ended'
+          : writeBack
+            ? `Updated: ${d.changed.join(', ')} — ready to write back to Example CRM`
+            : d.changed.length
+              ? `Updated: ${d.changed.join(', ')}`
+              : 'Updated',
+      meta: new Date(d.receivedAt).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+      tone: d.kind === 'completed' ? 'primary' : writeBack ? 'info' : 'success',
+    };
+  });
   return (
     <CardBody
       status={recordStatus}
@@ -759,82 +615,6 @@ export function RecordDeliveriesCard() {
         />
       ) : (
         <ActivityList rows={rows} />
-      )}
-    </CardBody>
-  );
-}
-
-// ── Phones ───────────────────────────────────────────────────────────────────
-
-export function PhonesCard() {
-  const { ui } = useFlowContext();
-  const { devices, deviceStatus, nameOf } = useLive();
-  const {
-    Table,
-    TableHead,
-    TableBody,
-    TableRow,
-    TableCell,
-    Chip,
-    Tooltip,
-    Typography,
-  } = ui ?? {};
-  if (
-    !Table ||
-    !TableHead ||
-    !TableBody ||
-    !TableRow ||
-    !TableCell ||
-    !Chip ||
-    !Tooltip ||
-    !Typography
-  ) {
-    return null;
-  }
-  return (
-    <CardBody status={deviceStatus} call='devices.onDomain(update)'>
-      {devices.length === 0 ? (
-        <Empty
-          icon='mdi:phone-classic'
-          title='No registration changes yet'
-          description='A phone appears here when it registers or drops off.'
-        />
-      ) : (
-        <Table size='small'>
-          <TableHead>
-            <TableRow>
-              <TableCell>Device</TableCell>
-              <TableCell>User</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Transport</TableCell>
-              <TableCell align='right'>Latency</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {devices.map((d) => (
-              <TableRow key={d.device}>
-                <TableCell>
-                  <Tooltip title={d.userAgent || 'Unknown phone'}>
-                    <Typography variant='body2'>{d.device}</Typography>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>{nameOf(d.user)}</TableCell>
-                <TableCell>
-                  <Chip
-                    size='small'
-                    variant='outlined'
-                    label={d.registered ? 'Registered' : 'Not registered'}
-                    color={d.registered ? 'success' : 'error'}
-                  />
-                </TableCell>
-                <TableCell>{d.transport || '—'}</TableCell>
-                <TableCell align='right'>
-                  {d.latencyMs ? `${Math.round(d.latencyMs.current)} ms` : '—'}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
       )}
     </CardBody>
   );

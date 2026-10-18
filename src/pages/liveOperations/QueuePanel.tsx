@@ -6,6 +6,9 @@
  * everything a queue screen shows: stats, the callers waiting (`waiting` /
  * `left`), calls through the queue, and its agents.
  *
+ * Each waiting caller is matched to Example CRM (`matchCrmParty`), so the list
+ * reads as accounts — VIPs first, open deals named — rather than numbers.
+ *
  * The caller handlers need the `calls.queue` grant and a domain-admin scope.
  * For anyone else the host refuses the whole subscription with a message, and
  * the panel shows it — the same call, written once, behaves correctly for
@@ -20,6 +23,8 @@ import type {
 import { useState } from 'react';
 import { useFlowContext, useStream } from '@netsapiens/flow-sdk';
 
+import { formatDealValue, matchCrmParty } from '../../mocks/crm';
+import { rankOf } from './crmJoin';
 import {
   chipColor,
   fmtSeconds,
@@ -99,9 +104,16 @@ function QueueDetail({ queue }: { queue: string }) {
     return null;
   }
 
-  const callers = [...waiting.values()].sort((a, b) =>
-    a.queuedAt.localeCompare(b.queuedAt),
-  );
+  // Each caller matched to the CRM, VIPs first and then by how long they have
+  // waited. The host's queue screen lists the same callers in arrival order;
+  // the reordering is the point — it is the CRM's opinion of who matters.
+  const callers = [...waiting.values()]
+    .map((caller) => ({ caller, record: matchCrmParty(caller.from) }))
+    .sort(
+      (a, b) =>
+        (a.record ? rankOf(a.record) : 3) - (b.record ? rankOf(b.record) : 3) ||
+        a.caller.queuedAt.localeCompare(b.caller.queuedAt),
+    );
 
   return (
     <Stack spacing={3}>
@@ -144,21 +156,39 @@ function QueueDetail({ queue }: { queue: string }) {
               <Empty icon='mdi:phone-hangup' title='No one is waiting' />
             ) : (
               <List dense disablePadding>
-                {callers.map((c) => (
+                {callers.map(({ caller: c, record }) => (
                   <ListItem
                     key={c.callId}
                     disableGutters
                     secondaryAction={
-                      <Chip
-                        size='small'
-                        label={fmtSeconds(since(c.queuedAt, now))}
-                        color={c.prioritized ? 'error' : 'warning'}
-                      />
+                      <Stack direction='row' spacing={0.5}>
+                        {record?.tier === 'vip' ? (
+                          <Chip size='small' color='warning' label='VIP' />
+                        ) : null}
+                        <Chip
+                          size='small'
+                          label={fmtSeconds(since(c.queuedAt, now))}
+                          color={c.prioritized ? 'error' : 'warning'}
+                        />
+                      </Stack>
                     }
                   >
                     <ListItemText
-                      primary={c.from.name || c.from.number}
-                      secondary={c.prioritized ? 'Prioritized' : c.from.number}
+                      primary={
+                        record
+                          ? `${record.company} · ${record.name}`
+                          : c.from.name || c.from.number
+                      }
+                      secondary={[
+                        c.prioritized ? 'Prioritized' : c.from.number,
+                        record?.opportunity
+                          ? `${formatDealValue(record.opportunity.value)} ${record.opportunity.stage.toLowerCase()}`
+                          : record
+                            ? null
+                            : 'Not in the CRM',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     />
                   </ListItem>
                 ))}

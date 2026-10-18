@@ -40,7 +40,7 @@ import { LIVE_FEEDS, liveHistory, RECORDS_KEPT } from './liveFeeds';
  *   queues.onDomainQueues({ agentUpdated, agentAdded, … })   → agents
  *   calls.onDomainCalls({ updated, ended })                  → calls
  *   presence.onDomain(update)                                → presence
- *   devices.onDomain(update)                                 → phones
+ *   devices.onDomain(update)                                 → phones (joined to agents)
  *   notifications.onNotification(update)                     → notifications
  *   subscribers.onDomain(update)                             → user record changes
  *   cdrs.onDomain({ completed, updated })                    → call records
@@ -48,6 +48,10 @@ import { LIVE_FEEDS, liveHistory, RECORDS_KEPT } from './liveFeeds';
  * The trend history and the call-record delivery log are history, which a
  * retained feed does not give back, so liveFeeds.ts builds them in the
  * background and this provider reads them.
+ *
+ * Nothing here knows about the CRM. The cards join what this provider holds to
+ * it (crmJoin.ts), so the stream plumbing is the same whatever an app's
+ * second system is.
  *
  * The queue drill-down opens a ninth, `queues.onQueue`, only while its panel
  * is open — see QueuePanel.tsx.
