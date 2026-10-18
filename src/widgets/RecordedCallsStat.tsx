@@ -14,9 +14,10 @@
  * should be composed of host components, and any styling it does itself is a
  * copy that will drift.
  *
- * The numbers come from the same `SAMPLE_CALL_RECORDINGS` fixture the Call
- * Recordings page lists, so the dashboard stat and the page agree — which is
- * what a real widget-plus-page pairing looks like.
+ * The numbers come from the same `SAMPLE_CALL_RECORDINGS` fixture the Recording
+ * QA Review page draws its queue from (the processed ones are what a reviewer
+ * can listen to), so the dashboard stat and the page agree — which is what a
+ * real widget-plus-page pairing looks like.
  */
 import type { WidgetComponentProps } from '@netsapiens/flow-sdk';
 

@@ -1,6 +1,6 @@
 {
   "name": "@netsapiens/flow-sdk-demo",
-  "version": "3.0.10",
+  "version": "3.0.11",
   "private": true,
   "description": "Demo app showing how to extend NetSapiens Flow with @netsapiens/flow-sdk. A Module Federation remote loaded by the Flow host.",
   "scripts": {

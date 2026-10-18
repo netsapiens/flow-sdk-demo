@@ -34,8 +34,8 @@ const PAGES: ReadonlyArray<{ label: string; path: string; menu: string }> = [
   },
   { label: 'CRM Integration', path: '/manage/crm-integration', menu: 'Manage' },
   {
-    label: 'Call Recordings',
-    path: '/home/call-recordings',
+    label: 'Recording QA Review',
+    path: '/home/recording-qa-review',
     menu: 'My Account',
   },
 ];

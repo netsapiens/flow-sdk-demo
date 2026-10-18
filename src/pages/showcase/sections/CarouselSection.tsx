@@ -15,9 +15,9 @@ const FEATURED = [
     note: 'Live CDRs + contact matching',
   },
   {
-    icon: 'mdi:record-rec',
-    name: 'Call Recordings',
-    note: 'Filterable recording library',
+    icon: 'mdi:clipboard-check-outline',
+    name: 'Recording QA Review',
+    note: 'Call quality scorecards',
   },
   {
     icon: 'mdi:palette',

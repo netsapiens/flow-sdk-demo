@@ -1009,7 +1009,7 @@ content-sized flex item, and the grid fills _the wrapper_ instead of the page, s
 it stops short of the bottom. If you genuinely need one, give it
 `sx={{ flex: 1, minHeight: 0 }}` so it fills and lets the grid fill in turn.
 
-`src/pages/CallRecordingsPage.tsx` in this repository is exactly this shape, and
+`src/pages/RecordingQaReviewPage.tsx` in this repository is exactly this shape, and
 `DATAGRID.md` covers the footer questions in more depth.
 
 Rules that trip apps up:
@@ -1021,7 +1021,7 @@ Rules that trip apps up:
    changes.
 
    This used to advise passing a concrete offset tuned to your own chrome. That produced
-   values like `calc(100vh - 470px)` — this repository's own call-recordings page was one
+   values like `calc(100vh - 470px)` — this repository's own list page was one
    — right the day they were written, wrong as soon as anything above the grid moved. Pass
    an explicit `height` only for a genuinely fixed-size grid: a dashboard card, one pane
    of a split view.

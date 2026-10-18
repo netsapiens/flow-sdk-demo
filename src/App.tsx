@@ -58,13 +58,13 @@ import {
   widgetTestId,
 } from './integration/zones';
 import { crmStatusOf } from './mocks/crmStatus';
-import CallRecordingsPage from './pages/CallRecordingsPage';
 import ComponentShowcasePage from './pages/ComponentShowcasePage';
 import CrmIntegrationPage from './pages/CrmIntegrationPage';
 import DemoPage from './pages/DemoPage';
 import DomainCrmSyncPage from './pages/DomainCrmSyncPage';
 import { liveHistory } from './pages/liveOperations/liveFeeds';
 import LiveOperationsPage from './pages/liveOperations/LiveOperationsPage';
+import RecordingQaReviewPage from './pages/RecordingQaReviewPage';
 import VendorDashboardPage from './pages/VendorDashboardPage';
 import { createCallEventHandler } from './services/callEnrichment';
 import { CallVolumeChart } from './widgets/CallVolumeChart';
@@ -243,12 +243,12 @@ export default function App(flowContext: FlowContext) {
     [], // stable identity prevents the host from remounting the page
   );
 
-  const CallRecordingsPageWithContext = useMemo(
+  const RecordingQaReviewPageWithContext = useMemo(
     () =>
-      function CallRecordingsPageWithContext(props: ZoneMarkerProps) {
+      function RecordingQaReviewPageWithContext(props: ZoneMarkerProps) {
         return (
           <FlowContextProvider context={flowContext}>
-            <CallRecordingsPage {...props} />
+            <RecordingQaReviewPage {...props} />
           </FlowContextProvider>
         );
       },
@@ -403,10 +403,15 @@ export default function App(flowContext: FlowContext) {
 
     sdk
       .registerRoute({
-        id: 'ucaas-call-recordings',
+        id: 'ucaas-recording-qa-review',
         // Mounts under the host's /home/$ dynamic-route outlet (→
-        // /home/call-recordings), which puts it in the My Account menu — the
-        // third menu tree this app extends, alongside Apps and Manage.
+        // /home/recording-qa-review), which puts it in the My Account menu —
+        // the third menu tree this app extends, alongside Apps and Manage.
+        //
+        // This was "Call Recordings" until it was noticed that it duplicated
+        // the host: Call Logs already plays and downloads every recording. It
+        // is now a mock QA review queue — data on top of the recordings that
+        // Flow does not have — and stays the reference DatagridTemplate page.
         //
         // '/home' is the right prefix even though the menu reads "My Account":
         // the label, the host's section id ('myaccount') and the URL prefix are
@@ -414,22 +419,26 @@ export default function App(flowContext: FlowContext) {
         // Older hosts resolve this URL but show no menu entry for it; see
         // "Choosing a menu — parentPath" in the README.
         //
-        // Placed right after Call Logs, which recordings pair naturally with.
-        // The anchor is matched by normalizing the menu item's name, so
-        // 'call-logs' resolves the My Account item whose name is 'CALL_LOGS'
-        // (both normalize to 'calllogs') even though its path is /home/inbox/call.
+        // Placed right after Call Logs, where the recordings it reviews play.
+        // The anchor is matched by normalizing the menu item's NAME, not its
+        // path: 'call-logs' resolves the My Account item named 'CALL_LOGS'
+        // (both normalize to 'calllogs'). That its path is /home/call-logs
+        // is a coincidence the match does not rely on.
         parentPath: '/home',
-        path: 'call-recordings',
-        label: 'Call Recordings',
-        icon: 'mdi:record-rec',
+        path: 'recording-qa-review',
+        label: 'Recording QA Review',
+        icon: 'mdi:clipboard-check-outline',
         placement: { after: 'call-logs' },
         component: withZoneTestId(
-          CallRecordingsPageWithContext,
-          routeTestId('ucaas-call-recordings'),
+          RecordingQaReviewPageWithContext,
+          routeTestId('ucaas-recording-qa-review'),
         ),
       })
       .catch((error) =>
-        console.error('[Demo App] Failed to register Call Recordings:', error),
+        console.error(
+          '[Demo App] Failed to register Recording QA Review:',
+          error,
+        ),
       );
 
     // ============================================================
@@ -801,7 +810,7 @@ export default function App(flowContext: FlowContext) {
     ComponentShowcasePageWithContext,
     CrmIntegrationPageWithContext,
     VendorDashboardPageWithContext,
-    CallRecordingsPageWithContext,
+    RecordingQaReviewPageWithContext,
   ]);
 
   // Headless: the app injects UI into the host; it renders nothing itself.

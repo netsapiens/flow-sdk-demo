@@ -22,7 +22,7 @@ const TEMPLATES: Array<{ name: string; what: string; where: string }> = [
   {
     name: 'DatagridTemplate',
     what: 'Search, filter, sort, CSV export, column show/hide, pagination.',
-    where: 'My Account → Call Recordings.',
+    where: 'My Account → Recording QA Review.',
   },
   {
     name: 'FormTemplate / FormPanel',
