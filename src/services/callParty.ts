@@ -13,7 +13,7 @@ export interface CallParty {
   /** Caller-ID / directory name from the row, if any. */
   name: string;
   /** How the call ran, for the subtitle line. */
-  direction: 'Inbound' | 'Outbound' | 'Missed' | 'Call';
+  direction: 'Inbound' | 'Outbound' | 'Missed' | 'Inter-company' | 'Unrouted';
 }
 
 function str(row: Record<string, unknown>, ...keys: string[]): string {
@@ -57,6 +57,13 @@ export function externalParty(row: Record<string, unknown>): CallParty {
       str(row, 'call-orig-from-user', 'call-orig-from-uri', 'call-orig-user'),
     ),
     name: str(row, 'call-orig-from-name'),
-    direction: dir === 1 ? 'Inbound' : dir === 2 ? 'Missed' : 'Call',
+    direction:
+      dir === 1
+        ? 'Inbound'
+        : dir === 2
+          ? 'Missed'
+          : dir === 3
+            ? 'Inter-company'
+            : 'Unrouted',
   };
 }
