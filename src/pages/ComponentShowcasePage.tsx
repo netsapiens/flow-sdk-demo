@@ -21,6 +21,17 @@
  * honest demonstration of a `PageAction` descriptor: a label, an icon and an
  * onClick, rendered by the host in the same style as every other page's header
  * button.
+ *
+ * Localization follows one rule across the page and its sections: a visible
+ * label goes through `t?.(KEY) ?? 'English'` wherever the host already has a
+ * key for it — Apps in the breadcrumb, Templates below, and the labels inside
+ * the live demos (Save, Cancel, Enabled, Overview, Status…). Everything else
+ * stays English on purpose: the page title, component names, the descriptive
+ * prose and every code snippet. An app ships its own strings for its own copy;
+ * `t()` is for the words the platform already translates, and borrowing a
+ * near-miss key for a heading would put the platform's meaning on our words.
+ * Every key used here was checked against the host's en-US strings — a key the
+ * host does not have renders as the key itself, not as the fallback.
  */
 import { useState } from 'react';
 import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
@@ -80,7 +91,7 @@ export default function ComponentShowcasePage({ ...marker }: ZoneMarkerProps) {
       title='Component Showcase'
       subtitle='Every shared component the host hands your app, with the code to use it'
       breadcrumbs={[
-        { label: 'Apps', url: '/apps' },
+        { label: t?.('APPS') ?? 'Apps', url: '/apps' },
         { label: 'Component Showcase' },
       ]}
       // A descriptor rather than JSX: the host then draws it in the house

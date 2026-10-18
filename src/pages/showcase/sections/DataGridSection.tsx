@@ -1,45 +1,54 @@
 /** Showcase section: DatagridTemplate (sortable/filterable data table). */
-import { useFlowContext } from '@netsapiens/flow-sdk';
+import { useMemo } from 'react';
+import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
 import { DATAGRID_SAMPLE_USERS } from '../../../mocks/datagridSample';
 import { SectionCode } from '../SectionCode';
 
-// Hoisted to module scope on purpose. The grid caches its internal column set
-// against the identity of `columns`/`actions`/`toolbar`, so a fresh literal per
-// render makes it reprocess every column — the cost that turns a table sharing a
-// component with a form into 150-300ms per keystroke. These close over nothing,
-// so they never need to be rebuilt. See DATAGRID.md § "Keep columns and actions
-// stable".
-const COLUMNS = [
-  { field: 'name', headerName: 'Name', flex: 1, minWidth: 150 },
-  { field: 'email', headerName: 'Email', flex: 1, minWidth: 200 },
+// The grid caches its internal column set against the identity of
+// `columns`/`actions`/`toolbar`, so a fresh literal per render makes it
+// reprocess every column — the cost that turns a table sharing a component with
+// a form into 150-300ms per keystroke. See DATAGRID.md § "Keep columns and
+// actions stable".
+//
+// Translated labels are the one thing these close over, so they are built in a
+// `useMemo` keyed on the language (below) rather than hoisted to module scope:
+// stable on every keystroke, rebuilt only on a language switch. The headers,
+// action labels and search placeholder are host keys, so the grid's own
+// toolbar and footer — which the host already localizes — are not sat beside
+// English column names. "Role" has no host key and stays English.
+type Translate = (key: string, fallback: string) => string;
+
+const buildColumns = (tr: Translate) => [
+  { field: 'name', headerName: tr('NAME', 'Name'), flex: 1, minWidth: 150 },
+  { field: 'email', headerName: tr('EMAIL', 'Email'), flex: 1, minWidth: 200 },
   { field: 'role', headerName: 'Role', width: 120 },
-  { field: 'status', headerName: 'Status', width: 100 },
+  { field: 'status', headerName: tr('STATUS', 'Status'), width: 100 },
 ];
 
-const ACTIONS = [
+const buildActions = (tr: Translate) => [
   {
-    label: 'Edit',
+    label: tr('EDIT', 'Edit'),
     icon: 'mdi:pencil',
     onClick: (row: unknown) => console.log('Edit:', row),
   },
   {
-    label: 'Delete',
+    label: tr('DELETE', 'Delete'),
     icon: 'mdi:delete',
     onClick: (row: unknown) => console.log('Delete:', row),
     color: 'error' as const,
   },
 ];
 
-const TOOLBAR = {
+const buildToolbar = (tr: Translate) => ({
   enableSearch: true,
-  searchPlaceholder: 'Search users...',
+  searchPlaceholder: tr('SEARCH_PLACEHOLDER', 'Search…'),
   enableExport: true,
   enableFilter: true,
   enableColumns: true,
   enableRefresh: true,
   onRefresh: () => console.log('Refresh'),
-};
+});
 
 const PAGE_SIZE_OPTIONS = [5, 10, 25];
 
@@ -47,7 +56,22 @@ const getRowId = (row: { id: string | number }) => row.id;
 
 export default function DataGridSection() {
   const { ui } = useFlowContext();
+  const { t, locale } = useLocale();
   const { Box, Typography, Paper } = ui || {};
+  // Rebuilt on a language switch, and only then. `locale` is the dependency
+  // that does the work: `t` arrives on the context the page wrapper froze, so
+  // its identity never changes, while `locale` is kept live by the provider.
+  // A `[t]`-only memo would translate once and never again — which is why the
+  // lint rule's "unnecessary dependency" advice is wrong here.
+  const { columns, actions, toolbar } = useMemo(() => {
+    const tr: Translate = (key, fallback) => t?.(key) ?? fallback;
+    return {
+      columns: buildColumns(tr),
+      actions: buildActions(tr),
+      toolbar: buildToolbar(tr),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [t, locale]);
   const { DatagridTemplate } = ui?.templates || {};
   if (!Paper || !Typography || !Box || !DatagridTemplate) return null;
 
@@ -63,9 +87,9 @@ export default function DataGridSection() {
       <Box>
         <DatagridTemplate
           data={DATAGRID_SAMPLE_USERS}
-          columns={COLUMNS}
-          actions={ACTIONS}
-          toolbar={TOOLBAR}
+          columns={columns}
+          actions={actions}
+          toolbar={toolbar}
           getRowId={getRowId}
           defaultPageSize={5}
           pageSizeOptions={PAGE_SIZE_OPTIONS}

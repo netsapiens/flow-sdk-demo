@@ -1,5 +1,5 @@
 /** Showcase section: Chart — line, area and bar, drawn by the host. */
-import { useFlowContext } from '@netsapiens/flow-sdk';
+import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
 import { SectionCode } from '../SectionCode';
 
@@ -22,6 +22,9 @@ const KINDS = [
 
 export default function ChartSection() {
   const { ui } = useFlowContext();
+  // Series labels are what the host prints in the legend and tooltip, so they
+  // are host strings. The day names on the axis are sample data and stay as is.
+  const { t } = useLocale();
   const { Chart, Typography, Stack, Paper, Box, Chip } = ui || {};
   if (!Paper || !Typography || !Stack || !Chart || !Box) return null;
 
@@ -57,8 +60,16 @@ export default function ChartSection() {
               xKey='day'
               stacked={kind === 'bar'}
               series={[
-                { key: 'answered', label: 'Answered', tone: 'success' },
-                { key: 'missed', label: 'Missed', tone: 'error' },
+                {
+                  key: 'answered',
+                  label: t?.('ANSWERED') ?? 'Answered',
+                  tone: 'success',
+                },
+                {
+                  key: 'missed',
+                  label: t?.('MISSED') ?? 'Missed',
+                  tone: 'error',
+                },
               ]}
             />
           </Stack>

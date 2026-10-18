@@ -6,9 +6,17 @@
  * arrives with: they already have a component library, so what does taking ours
  * buy them?
  */
-import { useFlowContext } from '@netsapiens/flow-sdk';
+import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
+import { LOCALIZATION_ANCHOR } from '../../../content/showcaseLocalization';
 import { useShowCode } from '../ShowCode';
+
+/**
+ * Host keys shown live on the first screen, so a reader who switches language
+ * sees this page answer before they have scrolled at all. Everyday verbs, on
+ * purpose: they are the strings an app most often re-translates by hand.
+ */
+const SAMPLE_KEYS = ['SAVE', 'CANCEL', 'DELETE', 'EXPORT', 'FILTER'];
 
 const POINTS: Array<{ icon: string; title: string; body: string }> = [
   {
@@ -35,7 +43,9 @@ const POINTS: Array<{ icon: string; title: string; body: string }> = [
 
 export default function IntroSection() {
   const { ui } = useFlowContext();
-  const { Typography, Paper, Box, Stack, Divider, Icon, Chip, Code } = ui || {};
+  const { Typography, Paper, Box, Stack, Divider, Icon, Chip, Code, Alert } =
+    ui || {};
+  const { t } = useLocale();
   const showCode = useShowCode();
   if (!Paper || !Typography || !Box || !Stack) return null;
 
@@ -54,6 +64,48 @@ export default function IntroSection() {
         indistinguishable from a native page — in every tenant&rsquo;s branding,
         in both colour modes, on day one.
       </Typography>
+
+      {/* Localization, up front. The rest of this page is a long scroll, and
+          the localized demo lives a screen or two down in Typography — so the
+          intro carries a live sample of it. The sentence is this app's own
+          copy and stays English; the chips are host strings and follow the
+          language switch. */}
+      {Alert ? (
+        <Alert
+          severity='info'
+          icon={Icon ? <Icon icon='mdi:translate' /> : undefined}
+          sx={{ mb: 3 }}
+          // A descriptor, not a node: the kit's Alert draws the button itself,
+          // in the house style, and its label is a host string like the chips.
+          action={{
+            label: t?.('LOCALIZATION') ?? 'Localization',
+            onClick: () =>
+              document
+                .getElementById(LOCALIZATION_ANCHOR)
+                ?.scrollIntoView({ behavior: 'smooth' }),
+          }}
+        >
+          <Typography variant='body2' sx={{ mb: Chip ? 1 : 0 }}>
+            Wherever the platform already has a word for it, this page&rsquo;s
+            labels come from the host&rsquo;s own translations. Switch language
+            with the flag in the top bar and they change live; choose{' '}
+            <strong>Debug Mode (Keys Only)</strong> to see exactly which strings
+            are localized.
+          </Typography>
+          {Chip ? (
+            <Stack direction='row' spacing={1} flexWrap='wrap' useFlexGap>
+              {SAMPLE_KEYS.map((key) => (
+                <Chip
+                  key={key}
+                  size='small'
+                  variant='outlined'
+                  label={t?.(key) ?? key}
+                />
+              ))}
+            </Stack>
+          ) : null}
+        </Alert>
+      ) : null}
 
       <Box
         sx={{

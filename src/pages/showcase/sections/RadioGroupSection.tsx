@@ -1,11 +1,14 @@
 /** Showcase section: RadioGroup (pre-built). */
 import { useState } from 'react';
-import { useFlowContext } from '@netsapiens/flow-sdk';
+import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
 import { SectionCode } from '../SectionCode';
 
 export default function RadioGroupSection() {
   const { ui } = useFlowContext();
+  // Host keys where the platform has one. "Important only" has none, so it
+  // stays English — borrowing a near-miss key would change what it says.
+  const { t } = useLocale();
   const { RadioGroup, Typography, Stack, Paper } = ui || {};
   const [radioGroupValue, setRadioGroupValue] = useState('all');
   if (!Paper || !Typography || !Stack || !RadioGroup) return null;
@@ -20,13 +23,16 @@ export default function RadioGroupSection() {
       </Typography>
 
       <RadioGroup
-        label='Preference'
+        label={t?.('PREFERENCES') ?? 'Preferences'}
         value={radioGroupValue}
         onChange={(e) => setRadioGroupValue(e.target.value)}
         options={[
-          { value: 'all', label: 'All notifications' },
+          {
+            value: 'all',
+            label: t?.('ALL_NOTIFICATIONS') ?? 'All notifications',
+          },
           { value: 'important', label: 'Important only' },
-          { value: 'none', label: 'None' },
+          { value: 'none', label: t?.('NONE') ?? 'None' },
         ]}
       />
 

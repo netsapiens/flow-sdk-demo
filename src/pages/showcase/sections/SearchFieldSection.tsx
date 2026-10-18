@@ -36,7 +36,7 @@ export default function SearchFieldSection() {
         <SearchField
           value={search}
           onChange={setSearch}
-          placeholder='Search domains'
+          placeholder={t?.('SEARCH_PLACEHOLDER') ?? 'Search…'}
           fullWidth
         />
         {Autocomplete ? (
