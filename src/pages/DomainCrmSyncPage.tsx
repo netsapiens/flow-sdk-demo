@@ -18,10 +18,10 @@
  * The read asks only for the four fields the page shows, so a large domain does
  * not send every user's whole record.
  *
- * ⚠️ KNOWN SDK BUG (flow-sdk 0.3.7): a domain switch made while this page is not
- * mounted is not seen when it next mounts — `useManagingDomain()` starts from
- * the snapshot taken at app load. Reported to the SDK; deliberately not worked
- * around here, so the fix shows when it lands.
+ * Needs flow-sdk 0.3.8 or later for one case: a domain switch made while this
+ * page is NOT mounted. Before 0.3.8 the provider started from the context
+ * snapshot taken at app load, so the page came up on the old domain; 0.3.8
+ * starts it from the host's current state. Nothing in the page works around it.
  *
  * CRM linkage is mock data, and linking or unlinking is kept in page state.
  */

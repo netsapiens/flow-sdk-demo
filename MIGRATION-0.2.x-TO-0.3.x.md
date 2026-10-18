@@ -2,12 +2,12 @@
 
 The guide for partners moving an app built on `@netsapiens/horizon-sdk` 0.2.x to
 **`@netsapiens/flow-sdk` 0.3.x**: what changed, what you must do, and where this
-demo shows each change working. Install the latest 0.3.x release, `^0.3.7`; the
+demo shows each change working. Install the latest 0.3.x release, `^0.3.8`; the
 code here is written against it.
 
 ```bash
 npm uninstall @netsapiens/horizon-sdk
-npm install @netsapiens/flow-sdk@^0.3.7
+npm install @netsapiens/flow-sdk@^0.3.8
 ```
 
 The SDK's own **Migration** section (`node_modules/@netsapiens/flow-sdk/README.md`)
@@ -20,7 +20,7 @@ says about bundle verification still holds.
 
 ## In one minute
 
-> **⚠️ Rebuild on `@netsapiens/flow-sdk` ^0.3.7 (the latest 0.3.x) and deploy
+> **⚠️ Rebuild on `@netsapiens/flow-sdk` ^0.3.8 (the latest 0.3.x) and deploy
 > the new version before 2026-10-31.** Today's Flow hosts still run apps built on
 > older SDKs. After 2026-10-31, Flow hosts give an app built on an SDK older than
 > 0.3.6 (all of `@netsapiens/horizon-sdk` 0.2.x and `@netsapiens/flow-sdk`
@@ -59,7 +59,7 @@ report nothing on hosts that serve `sdk.streams`. After that date, an app built
 on an SDK older than 0.3.6 loads but adds nothing to Flow, and a new version
 built on one is rejected at submission.
 
-The order that avoids trouble: rebuild on `@netsapiens/flow-sdk` ^0.3.7,
+The order that avoids trouble: rebuild on `@netsapiens/flow-sdk` ^0.3.8,
 publish, and submit the new version on every server you are registered on,
 well before 2026-10-31.
 
@@ -444,7 +444,7 @@ Unchanged from 0.2.x, and as important as ever:
 
 ## Checklist
 
-- [ ] `@netsapiens/horizon-sdk` removed; `@netsapiens/flow-sdk` ^0.3.7 installed
+- [ ] `@netsapiens/horizon-sdk` removed; `@netsapiens/flow-sdk` ^0.3.8 installed
 - [ ] Every `Horizon*` import is the `Flow*` name; `horizon-verify-bundle` is `flow-verify-bundle`
 - [ ] Your `webpack_module` is unchanged (unless you mean to become a new app)
 - [ ] No `subscribeToCallEvents` / `subscribeToStream`; each feed is an `sdk.streams` method, written plainly

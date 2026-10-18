@@ -106,7 +106,7 @@ If the target directory exists, ask before overwriting.
   },
   "engines": { "node": ">=18" },
   "dependencies": {
-    "@netsapiens/flow-sdk": "^0.3.7",
+    "@netsapiens/flow-sdk": "^0.3.8",
     "loglevel": "^1.9.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
