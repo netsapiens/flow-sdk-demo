@@ -5,7 +5,7 @@
   "remoteEntryUrl": "https://netsapiens.github.io/flow-sdk-demo/remoteEntry.js",
   "$comment_requiredScopes": "Where a route, column or widget declares `requiredScopes`, it is recorded here so the Playwright suite knows which signed-in scope can assert that surface — but the manifest is NOT what registers it. The enforcing value is an inline string literal at the registerRoute/registerDynamicColumn/registerWidget call site in App.tsx, because the platform analyser extracts an app's declared surface by reading string literals out of submitted source and cannot follow a constant or a loop. The duplication is deliberate; keep the two in step.",
   "$comment_widgets": "Dashboard widgets are NOT auto-mounted, and that is the contract working, not a bug: registering a widget makes it eligible, and a saved layout is authoritative, so a newly available widget appears in a dashboard's Customize catalogue rather than placing itself on somebody's grid. The Playwright suite must therefore ADD the widget from Customize before it can assert its testId. `zones` is the whole list the widget is eligible on; there is no data-zone attribute on a widget, because the same component can mount on any of them and a single zone attribute would name the wrong one. Like `requiredScopes`, `zones` here is documentation — the enforcing declaration is the inline literal array at the registerWidget call site in App.tsx, for the same string-literal-extraction reason.",
-  "version": "3.0.12",
+  "version": "3.0.13",
   "extensions": [
     {
       "id": "demo-analyze-calls",

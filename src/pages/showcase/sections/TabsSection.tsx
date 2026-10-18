@@ -1,14 +1,24 @@
 /** Showcase section: Tabs (the host's pill strip + the standard bar). */
-import { useState } from 'react';
-import { useFlowContext } from '@netsapiens/flow-sdk';
+import { useMemo, useState } from 'react';
+import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
 import { SectionCode } from '../SectionCode';
 
+/**
+ * Tab labels are host keys with an English fallback. The options stay at module
+ * scope as keys, and are resolved to labels in the render (see `useMemo`
+ * below) — the strip is the one thing on this card that should change language.
+ */
 const PANEL_TABS = [
-  { value: 'overview', label: 'Overview', icon: 'mdi:view-dashboard' },
-  { value: 'activity', label: 'Activity', icon: 'mdi:pulse' },
-  { value: 'settings', label: 'Settings', icon: 'mdi:cog' },
-  { value: 'archived', label: 'Archived', disabled: true },
+  {
+    value: 'overview',
+    key: 'OVERVIEW',
+    label: 'Overview',
+    icon: 'mdi:view-dashboard',
+  },
+  { value: 'activity', key: 'ACTIVITY', label: 'Activity', icon: 'mdi:pulse' },
+  { value: 'settings', key: 'SETTINGS', label: 'Settings', icon: 'mdi:cog' },
+  { value: 'archived', key: 'ARCHIVED', label: 'Archived', disabled: true },
 ];
 
 const PANEL_BODY: Record<string, string> = {
@@ -20,14 +30,30 @@ const PANEL_BODY: Record<string, string> = {
 };
 
 const PLAIN_TABS = [
-  { value: 'all', label: 'All' },
-  { value: 'active', label: 'Active' },
-  { value: 'suspended', label: 'Suspended' },
+  { value: 'all', key: 'ALL', label: 'All' },
+  { value: 'active', key: 'ACTIVE', label: 'Active' },
+  { value: 'suspended', key: 'SUSPENDED', label: 'Suspended' },
 ];
 
 export default function TabsSection() {
   const { ui } = useFlowContext();
+  const { t, locale } = useLocale();
   const { Tabs, Box, Typography, Stack, Paper } = ui || {};
+  // Rebuilt on a language switch, and only then. `locale` is the dependency
+  // that does the work: `t` arrives on the context the page wrapper froze, so
+  // its identity never changes, while `locale` is kept live by the provider.
+  // A `[t]`-only memo would translate once and never again — which is why the
+  // lint rule's "unnecessary dependency" advice is wrong here.
+  const [panelTabs, plainTabs] = useMemo(() => {
+    // `key` is ours, not part of the kit's option shape, so it is dropped.
+    const localize = <T extends { key: string; label: string }>(tabs: T[]) =>
+      tabs.map(({ key, label, ...rest }) => ({
+        ...rest,
+        label: t?.(key) ?? label,
+      }));
+    return [localize(PANEL_TABS), localize(PLAIN_TABS)];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [t, locale]);
   const [panelTab, setPanelTab] = useState<string | number>('overview');
   const [pillTab, setPillTab] = useState<string | number>('all');
   const [standardTab, setStandardTab] = useState<string | number>('all');
@@ -48,7 +74,7 @@ export default function TabsSection() {
           <Typography variant='subtitle2' gutterBottom>
             With panels (icons + a disabled option)
           </Typography>
-          <Tabs options={PANEL_TABS} value={panelTab} onChange={setPanelTab} />
+          <Tabs options={panelTabs} value={panelTab} onChange={setPanelTab} />
           <Paper rounded variant='outlined' sx={{ p: 2, mt: 2 }}>
             <Typography variant='body2'>
               {PANEL_BODY[panelTab] ?? ''}
@@ -61,7 +87,7 @@ export default function TabsSection() {
             Pill (default) — the Aurora treatment used across the host&apos;s
             own pages
           </Typography>
-          <Tabs options={PLAIN_TABS} value={pillTab} onChange={setPillTab} />
+          <Tabs options={plainTabs} value={pillTab} onChange={setPillTab} />
         </Box>
 
         <Box>
@@ -69,7 +95,7 @@ export default function TabsSection() {
             Pill, <code>fullWidth</code> — stretches to fill the strip
           </Typography>
           <Tabs
-            options={PLAIN_TABS}
+            options={plainTabs}
             value={pillTab}
             onChange={setPillTab}
             fullWidth
@@ -82,7 +108,7 @@ export default function TabsSection() {
             it
           </Typography>
           <Tabs
-            options={PLAIN_TABS}
+            options={plainTabs}
             value={standardTab}
             onChange={setStandardTab}
             variant='standard'
