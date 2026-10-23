@@ -14,7 +14,19 @@
  * module; app UI still comes from the kit.
  */
 
-const MARKER = '[data-testid^="sdk-demo-"]';
+import manifestJson from './zones.manifest.json';
+
+/**
+ * The app's menu entries. Flow draws them itself, as `nav-item-<path>`
+ * (sidenav NavItem and SlimNavItem), so they carry no `sdk-demo-` marker; they
+ * are found by the paths this app registers.
+ */
+const MENU_PATHS = new Set(
+  (manifestJson.routes as { path: string }[]).map((route) => route.path),
+);
+const MENU_MARKER = [...MENU_PATHS].map((p) => `[data-testid="nav-item-${p}"]`);
+
+const MARKER = ['[data-testid^="sdk-demo-"]', ...MENU_MARKER].join(', ');
 /** The toggle itself is an extension too; outlining it would only add noise. */
 const SELF_TEST_ID = 'sdk-demo-ext-topbar-highlight';
 const ORANGE = '#F29919';
@@ -32,6 +44,7 @@ function labelFor(el: Element): string {
   const zone = el.getAttribute('data-zone');
   if (zone) return zone;
   const testId = el.getAttribute('data-testid') ?? '';
+  if (testId.startsWith('nav-item-')) return 'menu';
   for (const [prefix, kind] of [
     ['sdk-demo-page-', 'page'],
     ['sdk-demo-col-', 'column'],
