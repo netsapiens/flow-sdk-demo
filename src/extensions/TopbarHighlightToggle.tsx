@@ -14,7 +14,7 @@ import { type ZoneMarkerProps } from '../integration/withZoneTestId';
  *
  * A presenter tool: on, every piece this app contributes is outlined in orange
  * with its zone name, so the room can tell SDK from native Flow; off, it all
- * blends back in. Alt+Shift+H does the same from the keyboard.
+ * blends back in.
  *
  * A component rather than a declared action because it shows state: the
  * button is filled while highlighting is on. The outlines themselves are the
@@ -22,7 +22,7 @@ import { type ZoneMarkerProps } from '../integration/withZoneTestId';
  */
 
 const ICON = 'material-symbols:select-all';
-const LABEL = 'Highlight extensions (Alt+Shift+H)';
+const LABEL = 'Highlight extensions';
 
 export function TopbarHighlightToggle({
   context,

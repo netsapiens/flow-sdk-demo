@@ -133,15 +133,3 @@ export function subscribeHighlighting(listener: Listener): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
-
-/** Alt+Shift+H toggles it from anywhere. Returns the cleanup. */
-export function installHighlightShortcut(): () => void {
-  const onKey = (e: KeyboardEvent) => {
-    if (e.altKey && e.shiftKey && e.code === 'KeyH') {
-      e.preventDefault();
-      toggleHighlighting();
-    }
-  };
-  window.addEventListener('keydown', onKey);
-  return () => window.removeEventListener('keydown', onKey);
-}

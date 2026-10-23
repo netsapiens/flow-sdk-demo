@@ -50,10 +50,7 @@ import {
 import type { ZoneMarkerProps } from './integration/withZoneTestId';
 import { CrmStatusCell } from './columns/CrmStatusColumn';
 import { appSdk } from './integration/appSdk';
-import {
-  installHighlightShortcut,
-  setHighlighting,
-} from './integration/highlightExtensions';
+import { setHighlighting } from './integration/highlightExtensions';
 import { withZoneTestId } from './integration/withZoneTestId';
 import {
   columnTestId,
@@ -260,16 +257,10 @@ export default function App(flowContext: FlowContext) {
     [], // stable identity prevents the host from remounting the page
   );
 
-  // Highlight extensions (presenter tool): Alt+Shift+H toggles the outlines the
-  // topbar toggle also controls. Unmounting the root, which is what switching
-  // the app off does, removes both the shortcut and any outlines on screen.
-  useEffect(() => {
-    const uninstall = installHighlightShortcut();
-    return () => {
-      uninstall();
-      setHighlighting(false);
-    };
-  }, []);
+  // Highlight extensions (presenter tool, toggled from the top bar). Unmounting
+  // the root, which is what switching the app off does, clears any outlines
+  // still on screen.
+  useEffect(() => () => setHighlighting(false), []);
 
   useEffect(() => {
     // ============================================================
