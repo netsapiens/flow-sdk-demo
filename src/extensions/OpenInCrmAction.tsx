@@ -4,6 +4,7 @@ import type {
 } from '@netsapiens/flow-sdk';
 import { useSidePanel } from '@netsapiens/flow-sdk';
 
+import { markPanel } from '../integration/panelMarker';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
 import { CrmContactPanel } from '../panels/CrmContactPanel';
 import { CRM_ICON } from '../panels/CrmSearchPanel';
@@ -51,7 +52,7 @@ export function OpenInCrmAction({
       subtitle: 'Example CRM · opened from a Call Logs row',
       width: 'sm',
       icon: CRM_ICON,
-      component: Panel,
+      component: markPanel('crm-contact', Panel),
     });
   };
 

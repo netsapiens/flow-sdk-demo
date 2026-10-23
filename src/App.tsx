@@ -4,7 +4,7 @@
  * This is the orchestrator: it initializes the SDK and, in a single effect,
  * registers everything the demo contributes to the host —
  *   - 7 full-page routes       (sdk.registerRoute)
- *   - 10 zone extensions        (sdk.registerDynamicExtension)
+ *   - 11 zone extensions        (sdk.registerDynamicExtension)
  *   - 1 dynamic table column    (sdk.registerDynamicColumn)
  *   - 9 dashboard widgets       (sdk.registerWidget)
  *   - 4 softphone streams       (sdk.streams.softphone)
@@ -50,6 +50,7 @@ import {
 import type { ZoneMarkerProps } from './integration/withZoneTestId';
 import { CrmStatusCell } from './columns/CrmStatusColumn';
 import { appSdk } from './integration/appSdk';
+import { setHighlighting } from './integration/highlightExtensions';
 import { withZoneTestId } from './integration/withZoneTestId';
 import {
   columnTestId,
@@ -255,6 +256,11 @@ export default function App(flowContext: FlowContext) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [], // stable identity prevents the host from remounting the page
   );
+
+  // Highlight extensions (presenter tool, toggled from the top bar). Unmounting
+  // the root, which is what switching the app off does, clears any outlines
+  // still on screen.
+  useEffect(() => () => setHighlighting(false), []);
 
   useEffect(() => {
     // ============================================================
@@ -464,7 +470,7 @@ export default function App(flowContext: FlowContext) {
     // ============================================================
     // 3. DYNAMIC EXTENSIONS + COLUMN — inject into host zones
     // ============================================================
-    // The 10 zone extensions are declared in integration/zones.manifest.json
+    // The 11 zone extensions are declared in integration/zones.manifest.json
     // (zone, route patterns, priority, permissions, testId) and registered by
     // iterating that manifest. Each component is wrapped with withZoneTestId so
     // the netsapiens-horizon-testing Playwright suite can locate the zone it
@@ -565,7 +571,7 @@ export default function App(flowContext: FlowContext) {
     // dashboard — that is the contract working.
     //
     // Registered inline rather than looped out of zones.manifest.json (which the
-    // 10 zone extensions above are), for the same reason routes and the column
+    // 11 zone extensions above are), for the same reason routes and the column
     // are: bundle verification reviews an app by extracting string literals from
     // its source, so `zones` has to be a literal array written at the call site.
     // A helper — including the SDK's own internal `widgetZoneFor(surface)`, which

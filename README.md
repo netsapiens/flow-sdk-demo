@@ -76,7 +76,7 @@ older SDK is rejected when you submit it.
 
 ## What it demonstrates
 
-This single app registers **7 full-page routes**, **10 zone extensions**, **1
+This single app registers **7 full-page routes**, **11 zone extensions**, **1
 dynamic table column**, **9 dashboard widgets**, **4 softphone streams** and **8
 retained live feeds** (`sdk.streams`), an **on-demand side panel**, and a
 **remote-auth handshake** with a backend.
@@ -225,18 +225,19 @@ Each registration targets a **zone** plus one or more **route patterns**. The
 host mounts these zones on its own pages; no pre-defined extension points are
 required.
 
-| Zone                    | Where it appears           | Demo component                                      |
-| ----------------------- | -------------------------- | --------------------------------------------------- |
-| `page-header-actions`   | Page header buttons        | Export Data (`ExportButton`)                        |
-| `page-header-secondary` | Beside the page title      | “● Live” badge (`HeaderStatusBadge`)                |
-| `page-content-after`    | Below the page body        | Call analytics (`AnalyticsWidget`)                  |
-| `table-toolbar`         | Above a data table         | Triage tips (`TableToolbarInfo`)                    |
-| `table-filter-bar`      | Beside host status filters | “● Recording” filter (`ActiveCallsRecordingFilter`) |
-| `table-row-actions`     | Per-row in a table         | Open in CRM (`OpenInCrmAction`)                     |
-| `form-section-before`   | Above a form's fields      | CRM banner (`ContactFormBanner`)                    |
-| `form-section-after`    | Below a form's fields      | Consent checkboxes (`ComplianceCheckbox`)           |
-| `inbound-call-content`  | Inbound-call widget        | Enriched caller card (`CallerInfoWidget`)           |
-| `topbar-actions`        | Global top app bar         | CRM launcher → contact search (`TopbarCrmButton`)   |
+| Zone                    | Where it appears           | Demo component                                        |
+| ----------------------- | -------------------------- | ----------------------------------------------------- |
+| `page-header-actions`   | Page header buttons        | Export Data (`ExportButton`)                          |
+| `page-header-secondary` | Beside the page title      | “● Live” badge (`HeaderStatusBadge`)                  |
+| `page-content-after`    | Below the page body        | Call analytics (`AnalyticsWidget`)                    |
+| `table-toolbar`         | Above a data table         | Triage tips (`TableToolbarInfo`)                      |
+| `table-filter-bar`      | Beside host status filters | “● Recording” filter (`ActiveCallsRecordingFilter`)   |
+| `table-row-actions`     | Per-row in a table         | Open in CRM (`OpenInCrmAction`)                       |
+| `form-section-before`   | Above a form's fields      | CRM banner (`ContactFormBanner`)                      |
+| `form-section-after`    | Below a form's fields      | Consent checkboxes (`ComplianceCheckbox`)             |
+| `inbound-call-content`  | Inbound-call widget        | Enriched caller card (`CallerInfoWidget`)             |
+| `topbar-actions`        | Global top app bar         | CRM launcher → contact search (`TopbarCrmButton`)     |
+| `topbar-actions`        | Global top app bar         | Highlight extensions toggle (`TopbarHighlightToggle`) |
 
 ### On-demand side panel — `sdk.openSidePanel()` / `useSidePanel()`
 
