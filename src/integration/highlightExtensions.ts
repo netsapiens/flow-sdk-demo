@@ -78,6 +78,10 @@ function draw() {
   document.querySelectorAll(MARKER).forEach((el) => {
     const testId = el.getAttribute('data-testid') ?? '';
     if (testId === SELF_TEST_ID) return;
+    // A full page is outlined once, as a page: the app's own page is all SDK,
+    // so callouts for every marked piece inside it are noise.
+    const page = el.parentElement?.closest('[data-testid^="sdk-demo-page-"]');
+    if (page) return;
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return;
     const box = document.createElement('div');
