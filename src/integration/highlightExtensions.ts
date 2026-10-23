@@ -103,10 +103,14 @@ function draw() {
       '[data-testid^="sdk-demo-page-"]',
     );
     if (page) return;
-    // Side-panel content: outline the whole drawer, title bar included.
+    // Side-panel content: outline the whole drawer, title bar included. A
+    // widget: the host's card frame around it (`…-frame` / `…-leaf-frame`),
+    // so the outline takes in the title the host draws.
     const el = testId.startsWith(PANEL_PREFIX)
       ? (marked.closest('.MuiDrawer-paper') ?? marked)
-      : marked;
+      : testId.startsWith('sdk-demo-widget-')
+        ? (marked.closest('[data-testid$="-frame"]') ?? marked)
+        : marked;
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return;
     const box = document.createElement('div');
