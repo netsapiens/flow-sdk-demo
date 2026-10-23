@@ -31,12 +31,29 @@ const MARKER = ['[data-testid^="sdk-demo-"]', ...MENU_MARKER].join(', ');
 const SELF_TEST_ID = 'sdk-demo-ext-topbar-highlight';
 const ORANGE = '#F29919';
 const LAYER_ID = 'sdk-demo-highlight-layer';
+/** Marker the app puts on its side-panel content; the panel's drawer is outlined. */
+export const PANEL_PREFIX = 'sdk-demo-panel-';
+/**
+ * Two layers, so an open drawer covers what is under it. Flow uses MUI's
+ * default stacking: app bar 1100, drawer 1200, modal 1300. Page outlines sit
+ * at 1150, above the top bar and under any drawer or dialog; outlines for
+ * anything inside a modal (side panel, dialog, popover) go on a layer above everything.
+ */
+const PAGE_Z = '1150';
+const OVERLAY_Z = '2147483000';
+// Modal surfaces only: a temporary drawer (the SDK side panel), a dialog or a
+// popover all render in a .MuiModal-root. Flow's left sidebar is a permanent
+// Drawer, which is not modal, so it stays on the page layer.
+const OVER_PAGE = '.MuiModal-root, [role="dialog"]';
 
 type Listener = (on: boolean) => void;
 
 let on = false;
 let frame = 0;
-let layer: HTMLDivElement | null = null;
+const layers: Record<'page' | 'over', HTMLDivElement | null> = {
+  page: null,
+  over: null,
+};
 const listeners = new Set<Listener>();
 
 /** What the label says: the zone for an extension, the kind otherwise. */
@@ -45,6 +62,7 @@ function labelFor(el: Element): string {
   if (zone) return zone;
   const testId = el.getAttribute('data-testid') ?? '';
   if (testId.startsWith('nav-item-')) return 'menu';
+  if (testId.startsWith(PANEL_PREFIX)) return 'side panel';
   for (const [prefix, kind] of [
     ['sdk-demo-page-', 'page'],
     ['sdk-demo-col-', 'column'],
@@ -56,32 +74,39 @@ function labelFor(el: Element): string {
   return testId.replace(/^sdk-demo-/, '');
 }
 
-function ensureLayer(): HTMLDivElement {
-  if (layer && document.body.contains(layer)) return layer;
-  layer = document.createElement('div');
-  layer.id = LAYER_ID;
+function ensureLayer(which: 'page' | 'over'): HTMLDivElement {
+  const existing = layers[which];
+  if (existing && document.body.contains(existing)) return existing;
+  const layer = document.createElement('div');
+  layer.id = `${LAYER_ID}-${which}`;
   layer.setAttribute('aria-hidden', 'true');
   Object.assign(layer.style, {
     position: 'fixed',
     inset: '0',
     pointerEvents: 'none',
-    zIndex: '2147483000',
+    zIndex: which === 'page' ? PAGE_Z : OVERLAY_Z,
   });
   document.body.appendChild(layer);
+  layers[which] = layer;
   return layer;
 }
 
 function draw() {
-  const root = ensureLayer();
   const seen = new Set<string>();
-  const boxes: HTMLElement[] = [];
-  document.querySelectorAll(MARKER).forEach((el) => {
-    const testId = el.getAttribute('data-testid') ?? '';
+  const boxes: Record<'page' | 'over', HTMLElement[]> = { page: [], over: [] };
+  document.querySelectorAll(MARKER).forEach((marked) => {
+    const testId = marked.getAttribute('data-testid') ?? '';
     if (testId === SELF_TEST_ID) return;
     // A full page is outlined once, as a page: the app's own page is all SDK,
     // so callouts for every marked piece inside it are noise.
-    const page = el.parentElement?.closest('[data-testid^="sdk-demo-page-"]');
+    const page = marked.parentElement?.closest(
+      '[data-testid^="sdk-demo-page-"]',
+    );
     if (page) return;
+    // Side-panel content: outline the whole drawer, title bar included.
+    const el = testId.startsWith(PANEL_PREFIX)
+      ? (marked.closest('.MuiDrawer-paper') ?? marked)
+      : marked;
     const r = el.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) return;
     const box = document.createElement('div');
@@ -100,7 +125,7 @@ function draw() {
     if (!seen.has(testId)) {
       seen.add(testId);
       const tag = document.createElement('span');
-      tag.textContent = labelFor(el);
+      tag.textContent = labelFor(marked);
       Object.assign(tag.style, {
         position: 'absolute',
         left: '0',
@@ -114,9 +139,10 @@ function draw() {
       });
       box.appendChild(tag);
     }
-    boxes.push(box);
+    boxes[el.closest(OVER_PAGE) ? 'over' : 'page'].push(box);
   });
-  root.replaceChildren(...boxes);
+  ensureLayer('page').replaceChildren(...boxes.page);
+  ensureLayer('over').replaceChildren(...boxes.over);
   frame = requestAnimationFrame(draw);
 }
 
@@ -135,8 +161,10 @@ export function setHighlighting(next: boolean): void {
     frame = requestAnimationFrame(draw);
   } else {
     cancelAnimationFrame(frame);
-    layer?.remove();
-    layer = null;
+    layers.page?.remove();
+    layers.over?.remove();
+    layers.page = null;
+    layers.over = null;
   }
   notify();
 }

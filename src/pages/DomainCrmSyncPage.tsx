@@ -34,6 +34,7 @@ import {
 } from '@netsapiens/flow-sdk';
 
 import type { CrmRecord } from '../mocks/crm';
+import { markPanel } from '../integration/panelMarker';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
 import { MOCK_CRM_DIRECTORY } from '../mocks/crm';
 import { CrmRecordPanel } from '../panels/CrmRecordPanel';
@@ -198,13 +199,13 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
         subtitle: row.displayName,
         width: 'sm',
         icon: 'mdi:card-account-details-outline',
-        component: (props) => (
+        component: markPanel('crm-record', (props) => (
           <CrmRecordPanel
             {...props}
             row={row}
             onToggleLink={() => toggleLink(row)}
           />
-        ),
+        )),
       }),
     [open, toggleLink],
   );

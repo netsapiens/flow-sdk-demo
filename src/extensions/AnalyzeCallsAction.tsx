@@ -23,6 +23,7 @@ import type {
 
 import type { CdrRow } from '../panels/CallAnalysisPanel';
 import { appSdk } from '../integration/appSdk';
+import { markPanel } from '../integration/panelMarker';
 import { CallAnalysisPanel } from '../panels/CallAnalysisPanel';
 
 /** The table state the call-logs grid publishes into `pageContext`. */
@@ -42,9 +43,9 @@ function analyzeCalls({ pageContext }: ExtensionActionContext) {
     subtitle: fromSelection ? 'Selected calls' : 'Calls in the grid',
     width: 'md',
     icon: 'material-symbols:query-stats',
-    component: (props) => (
+    component: markPanel('call-analysis', (props) => (
       <CallAnalysisPanel {...props} rows={rows} fromSelection={fromSelection} />
-    ),
+    )),
   });
 }
 

@@ -21,6 +21,7 @@
 import type { WidgetComponentProps } from '@netsapiens/flow-sdk';
 import { useSidePanel } from '@netsapiens/flow-sdk';
 
+import { markPanel } from '../integration/panelMarker';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
 import { CRM_ICON, CrmSearchPanel } from '../panels/CrmSearchPanel';
 
@@ -133,7 +134,7 @@ export function PartnerLinksWidget({
                 subtitle: 'Opened from a dashboard widget',
                 width: 'sm',
                 icon: CRM_ICON,
-                component: CrmSearchPanel,
+                component: markPanel('crm-search', CrmSearchPanel),
               })
             }
           >
