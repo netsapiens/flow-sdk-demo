@@ -36,6 +36,8 @@
 import { useState } from 'react';
 import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
+import { SHOWCASE_TEXT } from '../content/i18n/showcase';
+import { useAppText } from '../i18n/useAppText';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
 import {
   ActivityListSection,
@@ -72,7 +74,9 @@ import { ShowCodeContext } from './showcase/ShowCode';
 
 export default function ComponentShowcasePage({ ...marker }: ZoneMarkerProps) {
   const { ui } = useFlowContext();
+  // Flow's own words through t(); the app's own copy from its dictionaries.
   const { t } = useLocale();
+  const text = useAppText(SHOWCASE_TEXT);
   const { PageTemplate } = ui?.templates || {};
   const { Stack } = ui || {};
   const [showCode, setShowCode] = useState(true);
@@ -88,23 +92,21 @@ export default function ComponentShowcasePage({ ...marker }: ZoneMarkerProps) {
   return (
     <PageTemplate
       {...marker}
-      title='Component Showcase'
-      subtitle='Every shared component the host hands your app, with the code to use it'
+      title={text.pageTitle}
+      subtitle={text.pageSubtitle}
       breadcrumbs={[
         { label: t?.('APPS') ?? 'Apps', url: '/apps' },
-        { label: 'Component Showcase' },
+        { label: text.pageTitle },
       ]}
       // A descriptor rather than JSX: the host then draws it in the house
       // style, which is the whole argument this page is making.
       actions={[
         {
-          label: showCode ? 'Hide code' : 'Show code',
+          label: showCode ? text.hideCode : text.showCode,
           icon: showCode ? 'mdi:code-tags-check' : 'mdi:code-tags',
           variant: 'secondary',
           onClick: () => setShowCode((on) => !on),
-          tooltip: showCode
-            ? 'Collapse every snippet and read the gallery on its own'
-            : 'Show the copy-paste snippet under each component',
+          tooltip: showCode ? text.hideCodeTooltip : text.showCodeTooltip,
           'data-testid': 'sdk-demo-showcase-code-toggle',
         },
       ]}
@@ -113,18 +115,12 @@ export default function ComponentShowcasePage({ ...marker }: ZoneMarkerProps) {
         <Stack spacing={3}>
           <IntroSection />
 
-          <GroupHeading
-            title='Foundations'
-            blurb='Text, surfaces and the layout primitives everything else sits on.'
-          />
+          <GroupHeading {...text.groups.foundations} />
           <TypographySection />
           <LayoutSection />
           <CardSection />
 
-          <GroupHeading
-            title='Inputs'
-            blurb='Controls a user types into, picks from, or toggles.'
-          />
+          <GroupHeading {...text.groups.inputs} />
           <ButtonsSection />
           <IconButtonSection />
           <TextFieldSection />
@@ -136,20 +132,14 @@ export default function ComponentShowcasePage({ ...marker }: ZoneMarkerProps) {
           <SwitchSection />
           <ToggleButtonGroupSection />
 
-          <GroupHeading
-            title='Feedback & navigation'
-            blurb='Telling the user what happened, what something is, and where they are.'
-          />
+          <GroupHeading {...text.groups.feedback} />
           <AlertSection />
           <ChipSection />
           <AvatarSection />
           <TooltipSection />
           <TabsSection />
 
-          <GroupHeading
-            title='Data display'
-            blurb='Components that draw your data. These are also what dashboard widgets are built from, which is why they match the native cards exactly.'
-          />
+          <GroupHeading {...text.groups.data} />
           <ListSection />
           <TableSection />
           <ChartSection />
@@ -158,7 +148,7 @@ export default function ComponentShowcasePage({ ...marker }: ZoneMarkerProps) {
 
           <GroupHeading
             title={t?.('TEMPLATES') ?? 'Templates'}
-            blurb='Whole page and panel shells on ui.templates — the fastest route to a page that looks native, the host owns the layout and you own only the content.'
+            blurb={text.groups.templates.blurb}
           />
           <TemplatesSection />
           <DataGridSection />
