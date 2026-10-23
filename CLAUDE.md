@@ -104,11 +104,17 @@ components not available</div>` at the top of a page component — by
 3. **Inline text semantics** inside a `Typography`/`Box` — `<strong>`, `<em>`,
    `<code>`, `<li>`. They carry no color of their own and inherit from the host
    component above them.
+4. **The highlight overlay** in `src/integration/highlightExtensions.ts`, a
+   presenter tool approved for UGM 2026. It draws plain DOM outlines and zone
+   labels over the host page, in one fixed orange, so a demo or a screenshot shows
+   which pieces are this app's and which are Flow's. It sits above the page and
+   ignores the pointer; it is not app UI. Keep it to that one module. Its toggle
+   (`TopbarHighlightToggle`) is an ordinary kit button.
 
 ### Checking your work
 
 ```bash
-# should only ever match the three carve-outs above
+# should only ever match the carve-outs above
 grep -rn -E '<(div|span|p|h[1-6]|button|table|pre|ul|ol) ' --include='*.tsx' src
 grep -rn -e 'ui.styles' -e 'ui.theme' -e 'surface\.' -e 'badge\.' --include='*.tsx' src
 ```
