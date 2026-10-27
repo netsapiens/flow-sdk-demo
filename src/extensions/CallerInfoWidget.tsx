@@ -1,7 +1,19 @@
 /**
  * Caller Info Widget
- * Displays enriched caller information in the incoming call widget
- * Shows data fetched based on call events
+ *
+ * The CRM's view of whoever is ringing, in the incoming call card
+ * (`inbound-call-content`). Flow already draws the caller's avatar, name and
+ * number just above this zone; the card adds what only the CRM knows.
+ *
+ * Laid out to read at a glance while the phone rings:
+ *   - a header: the CRM's name for the caller, and their company
+ *   - one row of facts: last contact, previous calls
+ *   - the CRM's notes, clipped to two lines
+ *
+ * Kit components only, with palette-path colours, so the card follows the
+ * tenant theme and dark mode. The lookup is synchronous (see callEnrichment),
+ * so the card arrives complete with the ring: there is no loading state to
+ * hold a place for.
  */
 import type { ExtensionComponentProps } from '@netsapiens/flow-sdk';
 import { useEffect, useState } from 'react';
@@ -14,11 +26,6 @@ export function CallerInfoWidget({
   context,
   ...marker
 }: ExtensionComponentProps & ZoneMarkerProps) {
-  // context.theme is injected by DynamicExtensionRenderer via useColorScheme()
-  // and updated as a prop whenever the host theme changes — always correct on
-  // first render, no event subscription needed.
-  const { Paper, Stack, Typography, Divider, Icon } = context.ui ?? {};
-
   const [activeCalls, setActiveCalls] = useState<CallerInfo[]>([]);
 
   useEffect(() => {
@@ -31,75 +38,88 @@ export function CallerInfoWidget({
   }, []);
 
   const ringingCall = activeCalls.find((call) => call.status === 'ringing');
-  // Only render when there's a ringing call AND the CRM actually matched it.
-  // With no enrichment data the card would be an empty bordered box, so we hide
-  // the zone entirely instead.
-  const hasCrmData =
-    !!ringingCall &&
-    !!(
-      ringingCall.company ||
-      ringingCall.lastContact ||
-      ringingCall.notes ||
-      (ringingCall.callCount ?? 0) > 0
-    );
-  if (!ringingCall || !hasCrmData || !Paper || !Stack || !Typography) {
-    return null;
-  }
+  if (!ringingCall) return null;
+  return <CallerCard context={context} caller={ringingCall} {...marker} />;
+}
+
+/**
+ * The card itself, for one caller. Separate from the widget so it can be drawn
+ * from any record, not only the one that is ringing.
+ */
+export function CallerCard({
+  context,
+  caller,
+  ...marker
+}: Pick<ExtensionComponentProps, 'context'> &
+  ZoneMarkerProps & { caller: CallerInfo }) {
+  const { Paper, Stack, Typography, Divider, Icon } = context.ui ?? {};
+
+  // Only once the CRM has matched the caller. With nothing to add the card
+  // would be an empty box under Flow's own name and number, so the zone stays
+  // empty instead.
+  const previousCalls = caller.callCount ?? 0;
+  const hasCrmData = !!(
+    caller.company ||
+    caller.lastContact ||
+    caller.notes ||
+    previousCalls > 0
+  );
+  if (!hasCrmData || !Paper || !Stack || !Typography) return null;
+
+  const heading = [caller.callerName, caller.company]
+    .filter(Boolean)
+    .join(' · ');
+
+  const fact = (icon: string, label: string) => (
+    <Stack direction='row' spacing={0.5} alignItems='center' minWidth={0}>
+      {Icon && (
+        <Icon
+          icon={icon}
+          sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }}
+        />
+      )}
+      <Typography variant='caption' color='text.secondary' noWrap>
+        {label}
+      </Typography>
+    </Stack>
+  );
 
   return (
     <Paper {...marker} variant='outlined' sx={{ p: 1.5, mb: 2 }}>
-      <Stack spacing={1}>
-        {ringingCall.company && (
-          <Stack direction='row' spacing={1} alignItems='center'>
-            {Icon && (
-              <Icon
-                icon='mdi:office-building'
-                sx={{ fontSize: 18, color: 'text.secondary' }}
-              />
-            )}
-            <Typography variant='subtitle2' fontWeight={600}>
-              {ringingCall.company}
-            </Typography>
+      <Stack spacing={0.75}>
+        {heading && (
+          <Typography variant='subtitle2' fontWeight={600} noWrap>
+            {heading}
+          </Typography>
+        )}
+
+        {(caller.lastContact || previousCalls > 0) && (
+          <Stack direction='row' spacing={1.5} alignItems='center'>
+            {caller.lastContact &&
+              fact('mdi:clock-outline', caller.lastContact)}
+            {previousCalls > 0 &&
+              fact(
+                'mdi:phone-outline',
+                previousCalls === 1 ? '1 call' : `${previousCalls} calls`,
+              )}
           </Stack>
         )}
 
-        {ringingCall.lastContact && (
-          <Stack direction='row' spacing={1} alignItems='center'>
-            {Icon && (
-              <Icon
-                icon='mdi:clock-outline'
-                sx={{ fontSize: 16, color: 'text.secondary' }}
-              />
-            )}
-            <Typography variant='caption' color='text.secondary'>
-              Last contact: {ringingCall.lastContact}
-            </Typography>
-          </Stack>
-        )}
-
-        {ringingCall.callCount !== undefined && ringingCall.callCount > 0 && (
-          <Stack direction='row' spacing={1} alignItems='center'>
-            {Icon && (
-              <Icon
-                icon='mdi:phone'
-                sx={{ fontSize: 16, color: 'text.secondary' }}
-              />
-            )}
-            <Typography variant='caption' color='text.secondary'>
-              {ringingCall.callCount} previous calls
-            </Typography>
-          </Stack>
-        )}
-
-        {ringingCall.notes && (
+        {caller.notes && (
           <>
-            {Divider && <Divider />}
+            {Divider && <Divider sx={{ my: 0.5 }} />}
             <Typography
-              variant='caption'
+              variant='body2'
               color='text.secondary'
-              sx={{ fontStyle: 'italic' }}
+              title={caller.notes}
+              sx={{
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
             >
-              {ringingCall.notes}
+              {caller.notes}
             </Typography>
           </>
         )}
