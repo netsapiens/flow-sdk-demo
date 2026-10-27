@@ -44,6 +44,9 @@ function resolve(number: string): CrmRecord | undefined {
   return undefined;
 }
 
+/** The API's limit on a contact's notes. */
+const NOTES_MAX = 256;
+
 interface CrmContactPanelProps extends SidePanelContentProps {
   party: CallParty;
 }
@@ -66,6 +69,7 @@ export function CrmContactPanel({
   const [record, setRecord] = useState(() => resolve(party.number));
   const [name, setName] = useState(party.name);
   const [company, setCompany] = useState('');
+  const [notes, setNotes] = useState('');
   const [saveTo, setSaveTo] = useState<'personal' | 'shared'>('personal');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -100,6 +104,7 @@ export function CrmContactPanel({
           'name-first-name': first,
           'name-last-name': rest.join(' '),
           company: company.trim(),
+          notes: notes.trim(),
           'phonenumber-work': party.number,
           groups: [],
         },
@@ -109,9 +114,10 @@ export function CrmContactPanel({
         company: company.trim() || '—',
         lastContact: 'Just now',
         notes:
-          target === 'personal'
+          notes.trim() ||
+          (target === 'personal'
             ? 'Saved to your Flow contacts from a Call Logs row.'
-            : `Saved to the shared contacts of ${domain} from a Call Logs row.`,
+            : `Saved to the shared contacts of ${domain} from a Call Logs row.`),
         callCount: 1,
       };
       CREATED.set(crmLookupKeys(party.number)[0], made);
@@ -216,6 +222,16 @@ export function CrmContactPanel({
                 fullWidth
                 value={company}
                 onChange={(e) => setCompany(e.target.value.slice(0, 80))}
+              />
+              {/* The API caps a contact's notes at 256 characters; longer is a 400. */}
+              <TextField
+                label='Notes'
+                fullWidth
+                multiline
+                minRows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
+                helperText={`${notes.length}/${NOTES_MAX}`}
               />
               {RadioGroup ? (
                 <RadioGroup
