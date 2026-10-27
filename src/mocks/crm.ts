@@ -164,9 +164,42 @@ export function normalizePhoneNumber(sipUri: string): string {
     .replace(/w$/, ''); // drop the trailing 'w' NetSapiens appends
 }
 
+/**
+ * Presenter aliases: a real phone that should ring in as one of the demo's
+ * accounts, so a live call on stage fills the caller card. Kept in the
+ * presenter's browser, never in this public repo, as a JSON map from a number
+ * to a directory key:
+ *
+ *   localStorage.setItem('sdk-demo:crm-aliases',
+ *     JSON.stringify({ '+1 555 010 0000': '+15551234567' }));
+ *
+ * Matched on the last ten digits, since a carrier's caller ID arrives with or
+ * without its `+1`. Storage can be missing or blocked; then there is no alias.
+ */
+const ALIAS_STORAGE_KEY = 'sdk-demo:crm-aliases';
+
+function aliasFor(phoneNumber: string): string | undefined {
+  const digits = phoneNumber.replace(/\D/g, '').slice(-10);
+  if (digits.length < 10) return undefined;
+  try {
+    const raw = window.localStorage.getItem(ALIAS_STORAGE_KEY);
+    if (!raw) return undefined;
+    const aliases = JSON.parse(raw) as Record<string, string>;
+    for (const [from, to] of Object.entries(aliases)) {
+      if (from.replace(/\D/g, '').slice(-10) === digits) return to;
+    }
+  } catch {
+    // No storage, or not our JSON: no alias.
+  }
+  return undefined;
+}
+
 /** Look up a CRM record by raw (already-normalized) phone number or extension. */
 export function lookupCrmRecord(phoneNumber: string): CrmRecord | undefined {
-  return MOCK_CRM_DIRECTORY[phoneNumber];
+  const record = MOCK_CRM_DIRECTORY[phoneNumber];
+  if (record) return record;
+  const alias = aliasFor(phoneNumber);
+  return alias ? MOCK_CRM_DIRECTORY[alias] : undefined;
 }
 
 /**
