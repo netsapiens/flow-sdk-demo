@@ -76,11 +76,16 @@ const FILTERS: {
  * matches, the group says so itself.
  */
 const MATCH_TOOLBAR_BUTTONS = {
+  // A little air between the buttons, each with its own rounded corners
+  // rather than the group's joined edges.
+  gap: 0.5,
   '& .MuiToggleButton-root': {
     fontWeight: 600,
     textTransform: 'none',
     lineHeight: 1.429,
   },
+  '& .MuiToggleButtonGroup-grouped, & .MuiToggleButtonGroup-grouped:not(:first-of-type), & .MuiToggleButtonGroup-grouped:not(:last-of-type)':
+    { borderRadius: 1, marginLeft: 0 },
 };
 
 export function ActiveCallsRecordingFilter({
