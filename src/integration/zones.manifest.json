@@ -164,7 +164,7 @@
       "id": "demo-crm-status-column",
       "zone": "contacts-columns",
       "field": "crm-status",
-      "routes": ["/manage/contacts", "/manage/*/contacts"],
+      "routes": ["/manage/contacts", "/manage/*/contacts", "/home/contacts"],
       "requiredScopes": "PLATFORM",
       "testId": "sdk-demo-col-crm-status"
     }

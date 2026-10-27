@@ -499,6 +499,9 @@ export default function App(flowContext: FlowContext) {
       routes: [
         { pattern: '/manage/contacts' },
         { pattern: '/manage/*/contacts' },
+        // The user's own Contacts page: the same grid, and where the form
+        // banner and checkbox above already appear.
+        { pattern: '/home/contacts' },
       ],
       // Narrower than the page it appears on. Contacts lives under `/manage`,
       // whose section floor is ADMINS (Admin, Super User, Reseller); this column
