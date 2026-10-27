@@ -9,10 +9,12 @@
  */
 import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
+import { SHOWCASE_TEXT } from '../../../content/i18n/showcase';
 import {
   LOCALIZATION_ANCHOR,
   SHOWCASE_KEYS,
 } from '../../../content/showcaseLocalization';
+import { useAppText } from '../../../i18n/useAppText';
 import { SectionCode } from '../SectionCode';
 
 export default function TypographySection() {
@@ -33,6 +35,9 @@ export default function TypographySection() {
   // Reactive: both update the moment the user switches language in the top bar,
   // with nothing to subscribe to here.
   const { t, locale } = useLocale();
+  // The section's own copy, from the app's dictionaries: this is the section
+  // about language, so it has to follow the language switch too.
+  const text = useAppText(SHOWCASE_TEXT).typography;
   const hasTable = Table && TableHead && TableBody && TableRow && TableCell;
 
   if (!Paper || !Typography || !Stack) return null;
@@ -40,22 +45,22 @@ export default function TypographySection() {
   return (
     <Paper rounded>
       <Typography variant='h5' gutterBottom>
-        Typography &amp; localization
+        {text.title}
       </Typography>
       <Typography variant='body2' color='text.secondary' sx={{ mb: 3 }}>
-        The type scale, and where the words in it come from.
+        {text.subtitle}
       </Typography>
 
       <Stack spacing={2}>
-        <Typography variant='h4'>Heading 4</Typography>
-        <Typography variant='h5'>Heading 5</Typography>
-        <Typography variant='h6'>Heading 6</Typography>
-        <Typography variant='subtitle1'>Subtitle 1</Typography>
-        <Typography variant='subtitle2'>Subtitle 2</Typography>
-        <Typography variant='body1'>Body 1 - Default body text</Typography>
-        <Typography variant='body2'>Body 2 - Smaller text</Typography>
+        <Typography variant='h4'>{text.samples.h4}</Typography>
+        <Typography variant='h5'>{text.samples.h5}</Typography>
+        <Typography variant='h6'>{text.samples.h6}</Typography>
+        <Typography variant='subtitle1'>{text.samples.subtitle1}</Typography>
+        <Typography variant='subtitle2'>{text.samples.subtitle2}</Typography>
+        <Typography variant='body1'>{text.samples.body1}</Typography>
+        <Typography variant='body2'>{text.samples.body2}</Typography>
         <Typography variant='caption' color='text.secondary'>
-          Caption text
+          {text.samples.caption}
         </Typography>
       </Stack>
 
@@ -76,21 +81,15 @@ export default function TypographySection() {
         ) : null}
       </Stack>
       <Typography variant='body2' color='text.secondary' sx={{ mb: 2 }}>
-        The host hands your app its own translation function, already
-        initialised and already holding every string the platform ships — over
-        ten thousand keys in its common namespace alone. No i18next dependency,
-        no bundle, no init.
+        {text.hostBody}
       </Typography>
 
+      {/* "Debug Mode (Keys Only)" is the host menu entry's name, the same in
+          every language, so it stays literal. */}
       {Alert ? (
         <Alert severity='info' sx={{ mb: 2 }}>
-          <strong>Try it:</strong> pick another language from the flag in the
-          top bar and the right-hand column changes under you, with no reload.
-          Then pick <strong>Debug Mode (Keys Only)</strong> from the same menu:
-          every string the platform translates turns into its key. Anything that
-          does not is the app&rsquo;s own copy — translated from the app&rsquo;s
-          dictionaries where it ships one (this page&rsquo;s header and opening
-          panel), English elsewhere.
+          <strong>{text.tryLead}</strong> {text.tryBefore}{' '}
+          <strong>Debug Mode (Keys Only)</strong> {text.tryAfter}
         </Alert>
       ) : null}
 
@@ -176,10 +175,7 @@ const { Table, TableHead, TableBody, TableRow, TableCell } = flowContext.ui;
         color='text.secondary'
         sx={{ mt: 2, display: 'block' }}
       >
-        💡 Reach for a host key before writing your own. Anything the platform
-        already says — Save, Cancel, Status, Active — is translated into every
-        locale Flow ships and stays that way; a string you hard-code is English
-        forever, and reads as English in the middle of a translated page.
+        {text.tip}
       </Typography>
     </Paper>
   );
