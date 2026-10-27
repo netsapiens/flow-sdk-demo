@@ -114,6 +114,13 @@ function visibleBox(el: Element, clips: Map<Element, boolean>): Box | null {
     box.right = Math.min(box.right, c.right);
     box.bottom = Math.min(box.bottom, c.bottom);
   }
+  // A data grid's column headers stick to the top of the same scroller its rows
+  // scroll in, so a row passing under them is still "inside" the scroller.
+  const grid = el.closest('.MuiDataGrid-main');
+  const headers = grid?.querySelector('.MuiDataGrid-columnHeaders');
+  if (headers && !headers.contains(el)) {
+    box.top = Math.max(box.top, headers.getBoundingClientRect().bottom);
+  }
   return box.right > box.left && box.bottom > box.top ? box : null;
 }
 
