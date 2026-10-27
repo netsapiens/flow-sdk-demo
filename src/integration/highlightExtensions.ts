@@ -74,6 +74,49 @@ function labelFor(el: Element): string {
   return testId.replace(/^sdk-demo-/, '');
 }
 
+interface Box {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/**
+ * The part of `el` the user can actually see: its box cut down by every
+ * ancestor that scrolls or clips, and by the viewport. Without this a row
+ * scrolled out of a table, or a panel below the fold, still gets an outline,
+ * drawn over whatever is there instead — the outlines live on a fixed layer
+ * that nothing clips. `clips` caches the style read per ancestor for one frame.
+ */
+function visibleBox(el: Element, clips: Map<Element, boolean>): Box | null {
+  const r = el.getBoundingClientRect();
+  const box: Box = {
+    left: Math.max(r.left, 0),
+    top: Math.max(r.top, 0),
+    right: Math.min(r.right, window.innerWidth),
+    bottom: Math.min(r.bottom, window.innerHeight),
+  };
+  for (
+    let p = el.parentElement;
+    p && p !== document.body;
+    p = p.parentElement
+  ) {
+    let clipping = clips.get(p);
+    if (clipping === undefined) {
+      const s = getComputedStyle(p);
+      clipping = s.overflowX !== 'visible' || s.overflowY !== 'visible';
+      clips.set(p, clipping);
+    }
+    if (!clipping) continue;
+    const c = p.getBoundingClientRect();
+    box.left = Math.max(box.left, c.left);
+    box.top = Math.max(box.top, c.top);
+    box.right = Math.min(box.right, c.right);
+    box.bottom = Math.min(box.bottom, c.bottom);
+  }
+  return box.right > box.left && box.bottom > box.top ? box : null;
+}
+
 function ensureLayer(which: 'page' | 'over'): HTMLDivElement {
   const existing = layers[which];
   if (existing && document.body.contains(existing)) return existing;
@@ -93,6 +136,7 @@ function ensureLayer(which: 'page' | 'over'): HTMLDivElement {
 
 function draw() {
   const seen = new Set<string>();
+  const clips = new Map<Element, boolean>();
   const boxes: Record<'page' | 'over', HTMLElement[]> = { page: [], over: [] };
   document.querySelectorAll(MARKER).forEach((marked) => {
     const testId = marked.getAttribute('data-testid') ?? '';
@@ -111,15 +155,15 @@ function draw() {
       : testId.startsWith('sdk-demo-widget-')
         ? (marked.closest('[data-testid$="-frame"]') ?? marked)
         : marked;
-    const r = el.getBoundingClientRect();
-    if (r.width === 0 || r.height === 0) return;
+    const r = visibleBox(el, clips);
+    if (!r) return;
     const box = document.createElement('div');
     Object.assign(box.style, {
       position: 'fixed',
       left: `${r.left}px`,
       top: `${r.top}px`,
-      width: `${r.width}px`,
-      height: `${r.height}px`,
+      width: `${r.right - r.left}px`,
+      height: `${r.bottom - r.top}px`,
       outline: `2px solid ${ORANGE}`,
       outlineOffset: '1px',
       borderRadius: '4px',
