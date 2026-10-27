@@ -11,22 +11,25 @@
  *  - **Match** — the record from `mocks/crm.ts`, looked up under every spelling
  *    of the number (`findCrmRecord`), so `sip:2364@host` and `+15551234567`
  *    both resolve.
- *  - **No match** — a "Create contact" form. The create is mock: the new record
- *    lives in a module-level map in this bundle, survives closing and reopening
- *    the panel for the rest of the session, and is labelled as example data. A
- *    real app would POST to the vendor here, through its own backend.
+ *  - **No match** — a "Create contact" form that saves a real Flow contact,
+ *    through the host's authenticated API proxy: `POST /domains/{domain}/users/
+ *    {ext}/contacts` for the user's own contacts, or `/users/domain/contacts`
+ *    for the domain's shared ones (the server stamps it shared from that path
+ *    segment, exactly as Flow's own Add contact form does). The panel then
+ *    shows the new contact, and remembers it for the rest of the session.
  */
 import type { SidePanelContentProps } from '@netsapiens/flow-sdk';
 import { useState } from 'react';
 
 import type { CrmRecord } from '../mocks/crm';
 import type { CallParty } from '../services/callParty';
+import { appApi, appUserExtension } from '../integration/appSdk';
 import { crmLookupKeys, findCrmRecord } from '../mocks/crm';
 
 /**
- * Contacts "created" from this panel, keyed by the first lookup key of the
- * number. Module scope, so it outlives the panel component (which unmounts on
- * close) but not a page reload — honest for a mock, and never sent anywhere.
+ * Contacts created from this panel, keyed by the first lookup key of the
+ * number. Module scope, so reopening the panel shows the contact just saved
+ * (it outlives the panel component, which unmounts on close) without a lookup.
  */
 const CREATED = new Map<string, CrmRecord>();
 
@@ -50,24 +53,76 @@ export function CrmContactPanel({
   close,
   party,
 }: CrmContactPanelProps) {
-  const { Stack, Typography, Divider, Button, Chip, Alert, TextField } =
-    context.ui ?? {};
+  const {
+    Stack,
+    Typography,
+    Divider,
+    Button,
+    Chip,
+    Alert,
+    TextField,
+    RadioGroup,
+  } = context.ui ?? {};
   const [record, setRecord] = useState(() => resolve(party.number));
   const [name, setName] = useState(party.name);
   const [company, setCompany] = useState('');
+  const [saveTo, setSaveTo] = useState<'personal' | 'shared'>('personal');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   if (!Stack || !Typography) return null;
 
-  const create = () => {
-    const made: CrmRecord = {
-      name: name.trim() || party.number,
-      company: company.trim() || '—',
-      lastContact: 'Just now',
-      notes: 'Created from a Call Logs row in this demo. Example data only.',
-      callCount: 1,
-    };
-    CREATED.set(crmLookupKeys(party.number)[0], made);
-    setRecord(made);
+  // Personal contacts belong to the signed-in user, so they need an extension;
+  // shared ones go to the domain being managed, else the user's own.
+  const ownExtension = appUserExtension.current;
+  const sharedDomain = context.managing || context.user.domain;
+  const canSavePersonal = !!ownExtension;
+  const target =
+    saveTo === 'personal' && canSavePersonal ? 'personal' : 'shared';
+
+  const create = async () => {
+    const api = appApi.current;
+    if (!api) {
+      setError('The host has not handed this app its API client.');
+      return;
+    }
+    const domain = target === 'personal' ? context.user.domain : sharedDomain;
+    // The literal user segment `domain` is what makes a contact shared.
+    const user = target === 'personal' ? ownExtension! : 'domain';
+    const [first = '', ...rest] = (name.trim() || party.number).split(/\s+/);
+    setSaving(true);
+    setError('');
+    try {
+      await api.post(
+        `/domains/${encodeURIComponent(domain)}/users/${encodeURIComponent(user)}/contacts`,
+        {
+          domain,
+          'name-first-name': first,
+          'name-last-name': rest.join(' '),
+          company: company.trim(),
+          'phonenumber-work': party.number,
+          groups: [],
+        },
+      );
+      const made: CrmRecord = {
+        name: name.trim() || party.number,
+        company: company.trim() || '—',
+        lastContact: 'Just now',
+        notes:
+          target === 'personal'
+            ? 'Saved to your Flow contacts from a Call Logs row.'
+            : `Saved to the shared contacts of ${domain} from a Call Logs row.`,
+        callCount: 1,
+      };
+      CREATED.set(crmLookupKeys(party.number)[0], made);
+      setRecord(made);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : 'The contact could not be saved.',
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const facts: [string, string][] = record
@@ -162,14 +217,39 @@ export function CrmContactPanel({
                 value={company}
                 onChange={(e) => setCompany(e.target.value.slice(0, 80))}
               />
+              {RadioGroup ? (
+                <RadioGroup
+                  label='Save to'
+                  value={target}
+                  onChange={(e) =>
+                    setSaveTo(e.target.value as 'personal' | 'shared')
+                  }
+                  options={[
+                    ...(canSavePersonal
+                      ? [{ value: 'personal', label: 'My contacts' }]
+                      : []),
+                    {
+                      value: 'shared',
+                      label: `Shared contacts (${sharedDomain})`,
+                    },
+                  ]}
+                />
+              ) : null}
+              {error && Alert ? (
+                <Alert severity='error' title='Not saved' message={error} />
+              ) : null}
               <Stack direction='row' justifyContent='flex-end'>
-                <Button variant='contained' onClick={create}>
-                  Create contact
+                <Button
+                  variant='contained'
+                  onClick={() => void create()}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving…' : 'Create contact'}
                 </Button>
               </Stack>
               <Typography variant='caption' color='text.secondary'>
-                Example only: the contact is kept in this browser tab and sent
-                nowhere.
+                Saves a real contact in Flow, with this number as its work
+                phone.
               </Typography>
             </Stack>
           ) : null}
