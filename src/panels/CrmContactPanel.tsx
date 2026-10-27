@@ -67,12 +67,25 @@ export function CrmContactPanel({
     RadioGroup,
   } = context.ui ?? {};
   const [record, setRecord] = useState(() => resolve(party.number));
-  const [name, setName] = useState(party.name);
-  const [company, setCompany] = useState('');
-  const [notes, setNotes] = useState('');
+  // On a CRM match the save form starts from the CRM's record, so saving the
+  // caller to Flow is one click; otherwise from the row's caller-ID name.
+  const [name, setName] = useState(() => record?.name ?? party.name);
+  const [company, setCompany] = useState(() =>
+    record && record.company !== '—' ? record.company : '',
+  );
+  const [notes, setNotes] = useState(() =>
+    (record?.notes ?? '').slice(0, NOTES_MAX),
+  );
   const [saveTo, setSaveTo] = useState<'personal' | 'shared'>('personal');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  /** Where the contact went, once saved; the form gives way to this. */
+  const [saved, setSaved] = useState('');
+  // Saved from this panel earlier in the session: it is in Flow already, so
+  // offering the form again would only make a duplicate.
+  const [savedBefore] = useState(() =>
+    crmLookupKeys(party.number).some((key) => CREATED.has(key)),
+  );
 
   if (!Stack || !Typography) return null;
 
@@ -120,8 +133,17 @@ export function CrmContactPanel({
             : `Saved to the shared contacts of ${domain} from a Call Logs row.`),
         callCount: 1,
       };
-      CREATED.set(crmLookupKeys(party.number)[0], made);
-      setRecord(made);
+      // A CRM match keeps showing the CRM's record; a new contact becomes the
+      // record, so reopening the panel shows it.
+      if (!record) {
+        CREATED.set(crmLookupKeys(party.number)[0], made);
+        setRecord(made);
+      }
+      setSaved(
+        target === 'personal'
+          ? 'Saved to My contacts.'
+          : `Saved to the shared contacts of ${domain}.`,
+      );
     } catch (e) {
       setError(
         e instanceof Error ? e.message : 'The contact could not be saved.',
@@ -207,70 +229,76 @@ export function CrmContactPanel({
           ) : (
             <Typography variant='body2'>No CRM match</Typography>
           )}
-
-          {party.number && TextField && Button ? (
-            <Stack spacing={1.5}>
-              <Typography variant='subtitle2'>Create contact</Typography>
-              <TextField
-                label='Name'
-                fullWidth
-                value={name}
-                onChange={(e) => setName(e.target.value.slice(0, 80))}
-              />
-              <TextField
-                label='Company'
-                fullWidth
-                value={company}
-                onChange={(e) => setCompany(e.target.value.slice(0, 80))}
-              />
-              {/* The API caps a contact's notes at 256 characters; longer is a 400. */}
-              <TextField
-                label='Notes'
-                fullWidth
-                multiline
-                minRows={3}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
-                helperText={`${notes.length}/${NOTES_MAX}`}
-              />
-              {RadioGroup ? (
-                <RadioGroup
-                  label='Save to'
-                  value={target}
-                  onChange={(e) =>
-                    setSaveTo(e.target.value as 'personal' | 'shared')
-                  }
-                  options={[
-                    ...(canSavePersonal
-                      ? [{ value: 'personal', label: 'My contacts' }]
-                      : []),
-                    {
-                      value: 'shared',
-                      label: `Shared contacts (${sharedDomain})`,
-                    },
-                  ]}
-                />
-              ) : null}
-              {error && Alert ? (
-                <Alert severity='error' title='Not saved' message={error} />
-              ) : null}
-              <Stack direction='row' justifyContent='flex-end'>
-                <Button
-                  variant='contained'
-                  onClick={() => void create()}
-                  disabled={saving}
-                >
-                  {saving ? 'Saving…' : 'Create contact'}
-                </Button>
-              </Stack>
-              <Typography variant='caption' color='text.secondary'>
-                Saves a real contact in Flow, with this number as its work
-                phone.
-              </Typography>
-            </Stack>
-          ) : null}
         </>
       )}
+
+      {/* Offered on a match too: the demo saves the caller to Flow either way. */}
+      {party.number && !saved && !savedBefore && TextField && Button ? (
+        <Stack spacing={1.5}>
+          <Typography variant='subtitle2'>
+            {record ? 'Save to Flow contacts' : 'Create contact'}
+          </Typography>
+          <TextField
+            label='Name'
+            fullWidth
+            value={name}
+            onChange={(e) => setName(e.target.value.slice(0, 80))}
+          />
+          <TextField
+            label='Company'
+            fullWidth
+            value={company}
+            onChange={(e) => setCompany(e.target.value.slice(0, 80))}
+          />
+          {/* The API caps a contact's notes at 256 characters; longer is a 400. */}
+          <TextField
+            label='Notes'
+            fullWidth
+            multiline
+            minRows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value.slice(0, NOTES_MAX))}
+            helperText={`${notes.length}/${NOTES_MAX}`}
+          />
+          {RadioGroup ? (
+            <RadioGroup
+              label='Save to'
+              value={target}
+              onChange={(e) =>
+                setSaveTo(e.target.value as 'personal' | 'shared')
+              }
+              options={[
+                ...(canSavePersonal
+                  ? [{ value: 'personal', label: 'My contacts' }]
+                  : []),
+                {
+                  value: 'shared',
+                  label: `Shared contacts (${sharedDomain})`,
+                },
+              ]}
+            />
+          ) : null}
+          {error && Alert ? (
+            <Alert severity='error' title='Not saved' message={error} />
+          ) : null}
+          <Stack direction='row' justifyContent='flex-end'>
+            <Button
+              variant='contained'
+              onClick={() => void create()}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Create contact'}
+            </Button>
+          </Stack>
+          <Typography variant='caption' color='text.secondary'>
+            Saves a real contact in Flow, with this number as its work phone.
+          </Typography>
+        </Stack>
+      ) : null}
+
+      {saved && Alert ? (
+        <Alert severity='success' title='Contact saved' message={saved} />
+      ) : null}
 
       {Button && (
         <>
