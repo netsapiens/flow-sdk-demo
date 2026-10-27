@@ -51,6 +51,7 @@ import type { ZoneMarkerProps } from './integration/withZoneTestId';
 import { CrmStatusCell } from './columns/CrmStatusColumn';
 import { appApi, appSdk, appUserExtension } from './integration/appSdk';
 import { setHighlighting } from './integration/highlightExtensions';
+import { registerAppRoute, relabelRoutes } from './integration/routeLabels';
 import { withZoneTestId } from './integration/withZoneTestId';
 import {
   columnTestId,
@@ -148,7 +149,7 @@ export default function App(flowContext: FlowContext) {
   // used as the ModuleFederationPlugin `name`, so the container name lives in one
   // place. The SDK derives the kebab app id ('flow-extension-demo') from it for
   // registry attribution.
-  const { sdk, user, theme } = useRemoteApp(flowContext, __MF_NAME__);
+  const { sdk, user, theme, locale } = useRemoteApp(flowContext, __MF_NAME__);
   // For declared actions, which get no SDK handle (integration/appSdk.ts).
   appSdk.current = sdk;
   appApi.current = flowContext.api;
@@ -268,124 +269,111 @@ export default function App(flowContext: FlowContext) {
     // ============================================================
     // 1. FULL PAGE ROUTES — added to the Apps, Manage and My Account menus
     // ============================================================
-    sdk
-      .registerRoute({
-        id: 'ucaas-demo-page',
-        parentPath: '/apps',
-        path: 'flow-sdk-demo',
-        label: 'Flow SDK Demo',
-        icon: 'mdi:rocket-launch',
-        placement: { last: true },
-        component: withZoneTestId(
-          DemoPageWithContext,
-          routeTestId('ucaas-demo-page'),
-        ),
-      })
-      .catch((error) =>
-        console.error('[Demo App] Failed to register demo page:', error),
-      );
+    registerAppRoute(sdk, {
+      id: 'ucaas-demo-page',
+      parentPath: '/apps',
+      path: 'flow-sdk-demo',
+      label: 'Flow SDK Demo',
+      icon: 'mdi:rocket-launch',
+      placement: { last: true },
+      component: withZoneTestId(
+        DemoPageWithContext,
+        routeTestId('ucaas-demo-page'),
+      ),
+    }).catch((error) =>
+      console.error('[Demo App] Failed to register demo page:', error),
+    );
 
     // Live Operations — the sdk.streams example. Deliberately NOT narrowed by
     // requiredScopes: a Basic User reaches the page and sees the domain-calls
     // card refused with the host's own message, which is half of the lesson.
-    sdk
-      .registerRoute({
-        id: 'ucaas-live-operations',
-        parentPath: '/apps',
-        path: 'live-operations',
-        label: 'Live Operations',
-        icon: 'mdi:monitor-dashboard',
-        component: withZoneTestId(
-          LiveOperationsPageWithContext,
-          routeTestId('ucaas-live-operations'),
-        ),
-      })
-      .catch((error) =>
-        console.error('[Demo App] Failed to register Live Operations:', error),
-      );
+    registerAppRoute(sdk, {
+      id: 'ucaas-live-operations',
+      parentPath: '/apps',
+      path: 'live-operations',
+      label: 'Live Operations',
+      icon: 'mdi:monitor-dashboard',
+      component: withZoneTestId(
+        LiveOperationsPageWithContext,
+        routeTestId('ucaas-live-operations'),
+      ),
+    }).catch((error) =>
+      console.error('[Demo App] Failed to register Live Operations:', error),
+    );
 
-    sdk
-      .registerRoute({
-        id: 'ucaas-component-showcase',
-        parentPath: '/apps',
-        path: 'component-showcase',
-        label: 'Component Showcase',
-        icon: 'mdi:palette',
-        placement: { first: true },
-        // `/apps` carries no section floor, so this declaration is the ONLY
-        // thing gating the page — the case where `requiredScopes` does real
-        // work rather than narrowing something the host already enforces. It
-        // governs the nav entry and the URL together, so a Basic User neither
-        // sees the menu item nor reaches /apps/component-showcase by typing it.
-        //
-        // A tier NAME, not a scope list: the host resolves 'DOMAIN_MANAGERS'
-        // against its own current membership when access is checked, so if the
-        // platform re-members the tier this page follows with nothing to
-        // rebuild. A literal list would be a snapshot of today, and because the
-        // host intersects, a stale one quietly LOSES access rather than failing.
-        //
-        // Written inline rather than pulled from a constant on purpose: the
-        // platform analyser extracts an app's declared surface by reading string
-        // literals out of the submitted source, so a constant extracts as
-        // nothing and the Registered Apps page shows an empty Routes column.
-        requiredScopes: 'DOMAIN_MANAGERS',
-        component: withZoneTestId(
-          ComponentShowcasePageWithContext,
-          routeTestId('ucaas-component-showcase'),
-        ),
-      })
-      .catch((error) =>
-        console.error(
-          '[Demo App] Failed to register Component Showcase:',
-          error,
-        ),
-      );
+    registerAppRoute(sdk, {
+      id: 'ucaas-component-showcase',
+      parentPath: '/apps',
+      path: 'component-showcase',
+      label: 'Component Showcase',
+      icon: 'mdi:palette',
+      placement: { first: true },
+      // `/apps` carries no section floor, so this declaration is the ONLY
+      // thing gating the page — the case where `requiredScopes` does real
+      // work rather than narrowing something the host already enforces. It
+      // governs the nav entry and the URL together, so a Basic User neither
+      // sees the menu item nor reaches /apps/component-showcase by typing it.
+      //
+      // A tier NAME, not a scope list: the host resolves 'DOMAIN_MANAGERS'
+      // against its own current membership when access is checked, so if the
+      // platform re-members the tier this page follows with nothing to
+      // rebuild. A literal list would be a snapshot of today, and because the
+      // host intersects, a stale one quietly LOSES access rather than failing.
+      //
+      // Written inline rather than pulled from a constant on purpose: the
+      // platform analyser extracts an app's declared surface by reading string
+      // literals out of the submitted source, so a constant extracts as
+      // nothing and the Registered Apps page shows an empty Routes column.
+      requiredScopes: 'DOMAIN_MANAGERS',
+      component: withZoneTestId(
+        ComponentShowcasePageWithContext,
+        routeTestId('ucaas-component-showcase'),
+      ),
+    }).catch((error) =>
+      console.error('[Demo App] Failed to register Component Showcase:', error),
+    );
 
-    sdk
-      .registerRoute({
-        id: 'ucaas-crm-integration',
-        // Mounts under the host's /manage/$ dynamic-route outlet, so the route
-        // lives one level under /manage (→ /manage/crm-integration). The menu
-        // item is placed right after Call Logs. (Deeper nesting under a static
-        // route like call-logs would need a host-side splat outlet there.)
-        parentPath: '/manage',
-        path: 'crm-integration',
-        label: 'CRM Integration',
-        icon: 'mdi:account-sync',
-        placement: { after: 'call-logs' },
-        component: withZoneTestId(
-          CrmIntegrationPageWithContext,
-          routeTestId('ucaas-crm-integration'),
-        ),
-      })
-      .catch((error) =>
-        console.error('[Demo App] Failed to register CRM Integration:', error),
-      );
+    registerAppRoute(sdk, {
+      id: 'ucaas-crm-integration',
+      // Mounts under the host's /manage/$ dynamic-route outlet, so the route
+      // lives one level under /manage (→ /manage/crm-integration). The menu
+      // item is placed right after Call Logs. (Deeper nesting under a static
+      // route like call-logs would need a host-side splat outlet there.)
+      parentPath: '/manage',
+      path: 'crm-integration',
+      label: 'CRM Integration',
+      icon: 'mdi:account-sync',
+      placement: { after: 'call-logs' },
+      component: withZoneTestId(
+        CrmIntegrationPageWithContext,
+        routeTestId('ucaas-crm-integration'),
+      ),
+    }).catch((error) =>
+      console.error('[Demo App] Failed to register CRM Integration:', error),
+    );
 
-    sdk
-      .registerRoute({
-        id: 'ucaas-domain-crm-sync',
-        // DOMAIN-SCOPED. `:domain` is a token the host fills from the URL, so
-        // this ONE registration serves every domain the admin can drill into
-        // (→ /manage/acme.example.com/crm-sync). The app never enumerates or
-        // names a domain; the page reads the selected one with
-        // useManagingDomain(). `/manage/:domain` is the only parent path that
-        // takes a token today, and the token must sit at that one position.
-        parentPath: '/manage/:domain',
-        path: 'crm-sync',
-        label: 'CRM Sync',
-        icon: 'mdi:sync',
-        // Drilling into a domain is a Reseller-and-up action to begin with; the
-        // page itself only needs a domain manager once you are inside one.
-        requiredScopes: 'DOMAIN_MANAGERS',
-        component: withZoneTestId(
-          DomainCrmSyncPageWithContext,
-          routeTestId('ucaas-domain-crm-sync'),
-        ),
-      })
-      .catch((error) =>
-        console.error('[Demo App] Failed to register CRM Sync:', error),
-      );
+    registerAppRoute(sdk, {
+      id: 'ucaas-domain-crm-sync',
+      // DOMAIN-SCOPED. `:domain` is a token the host fills from the URL, so
+      // this ONE registration serves every domain the admin can drill into
+      // (→ /manage/acme.example.com/crm-sync). The app never enumerates or
+      // names a domain; the page reads the selected one with
+      // useManagingDomain(). `/manage/:domain` is the only parent path that
+      // takes a token today, and the token must sit at that one position.
+      parentPath: '/manage/:domain',
+      path: 'crm-sync',
+      label: 'CRM Sync',
+      icon: 'mdi:sync',
+      // Drilling into a domain is a Reseller-and-up action to begin with; the
+      // page itself only needs a domain manager once you are inside one.
+      requiredScopes: 'DOMAIN_MANAGERS',
+      component: withZoneTestId(
+        DomainCrmSyncPageWithContext,
+        routeTestId('ucaas-domain-crm-sync'),
+      ),
+    }).catch((error) =>
+      console.error('[Demo App] Failed to register CRM Sync:', error),
+    );
 
     // A PAGE THAT IS A DASHBOARD. Everything in §4 below registers into one of
     // the HOST's dashboards, where the reader decides what lands and where. This
@@ -393,61 +381,57 @@ export default function App(flowContext: FlowContext) {
     // dashboard shell and the same card frames on a page it owns outright, with
     // the widgets it declares in the order it chose and no Customize or Reorder
     // — neither means anything when the app decided the layout.
-    sdk
-      .registerRoute({
-        id: 'ucaas-vendor-dashboard',
-        parentPath: '/apps',
-        path: 'example-crm',
-        label: 'Example CRM',
-        icon: 'mdi:view-dashboard-outline',
-        component: withZoneTestId(
-          VendorDashboardPageWithContext,
-          routeTestId('ucaas-vendor-dashboard'),
-        ),
-      })
-      .catch((error) =>
-        console.error('[Demo App] Failed to register Example CRM:', error),
-      );
+    registerAppRoute(sdk, {
+      id: 'ucaas-vendor-dashboard',
+      parentPath: '/apps',
+      path: 'example-crm',
+      label: 'Example CRM',
+      icon: 'mdi:view-dashboard-outline',
+      component: withZoneTestId(
+        VendorDashboardPageWithContext,
+        routeTestId('ucaas-vendor-dashboard'),
+      ),
+    }).catch((error) =>
+      console.error('[Demo App] Failed to register Example CRM:', error),
+    );
 
-    sdk
-      .registerRoute({
-        id: 'ucaas-recording-qa-review',
-        // Mounts under the host's /home/$ dynamic-route outlet (→
-        // /home/recording-qa-review), which puts it in the My Account menu —
-        // the third menu tree this app extends, alongside Apps and Manage.
-        //
-        // This was "Call Recordings" until it was noticed that it duplicated
-        // the host: Call Logs already plays and downloads every recording. It
-        // is now a mock QA review queue — data on top of the recordings that
-        // Flow does not have — and stays the reference DatagridTemplate page.
-        //
-        // '/home' is the right prefix even though the menu reads "My Account":
-        // the label, the host's section id ('myaccount') and the URL prefix are
-        // three different strings for one tree. '/myaccount' is not a route.
-        // Older hosts resolve this URL but show no menu entry for it; see
-        // "Choosing a menu — parentPath" in the README.
-        //
-        // Placed right after Call Logs, where the recordings it reviews play.
-        // The anchor is matched by normalizing the menu item's NAME, not its
-        // path: 'call-logs' resolves the My Account item named 'CALL_LOGS'
-        // (both normalize to 'calllogs'). That its path is /home/call-logs
-        // is a coincidence the match does not rely on.
-        parentPath: '/home',
-        path: 'recording-qa-review',
-        label: 'Recording QA Review',
-        icon: 'mdi:clipboard-check-outline',
-        placement: { after: 'call-logs' },
-        component: withZoneTestId(
-          RecordingQaReviewPageWithContext,
-          routeTestId('ucaas-recording-qa-review'),
-        ),
-      })
-      .catch((error) =>
-        console.error(
-          '[Demo App] Failed to register Recording QA Review:',
-          error,
-        ),
-      );
+    registerAppRoute(sdk, {
+      id: 'ucaas-recording-qa-review',
+      // Mounts under the host's /home/$ dynamic-route outlet (→
+      // /home/recording-qa-review), which puts it in the My Account menu —
+      // the third menu tree this app extends, alongside Apps and Manage.
+      //
+      // This was "Call Recordings" until it was noticed that it duplicated
+      // the host: Call Logs already plays and downloads every recording. It
+      // is now a mock QA review queue — data on top of the recordings that
+      // Flow does not have — and stays the reference DatagridTemplate page.
+      //
+      // '/home' is the right prefix even though the menu reads "My Account":
+      // the label, the host's section id ('myaccount') and the URL prefix are
+      // three different strings for one tree. '/myaccount' is not a route.
+      // Older hosts resolve this URL but show no menu entry for it; see
+      // "Choosing a menu — parentPath" in the README.
+      //
+      // Placed right after Call Logs, where the recordings it reviews play.
+      // The anchor is matched by normalizing the menu item's NAME, not its
+      // path: 'call-logs' resolves the My Account item named 'CALL_LOGS'
+      // (both normalize to 'calllogs'). That its path is /home/call-logs
+      // is a coincidence the match does not rely on.
+      parentPath: '/home',
+      path: 'recording-qa-review',
+      label: 'Recording QA Review',
+      icon: 'mdi:clipboard-check-outline',
+      placement: { after: 'call-logs' },
+      component: withZoneTestId(
+        RecordingQaReviewPageWithContext,
+        routeTestId('ucaas-recording-qa-review'),
+      ),
+    }).catch((error) =>
+      console.error(
+        '[Demo App] Failed to register Recording QA Review:',
+        error,
+      ),
+    );
 
     // ============================================================
     // 2. CALL EVENTS — enrich inbound calls from the mock CRM
@@ -835,6 +819,13 @@ export default function App(flowContext: FlowContext) {
     VendorDashboardPageWithContext,
     RecordingQaReviewPageWithContext,
   ]);
+
+  // The menu entries follow the language: Flow translates only its own keys,
+  // so the app re-registers its routes with its own labels (routeLabels.ts).
+  // After the effect above, so the routes are registered before a relabel.
+  useEffect(() => {
+    relabelRoutes(sdk, locale);
+  }, [sdk, locale]);
 
   // Headless: the app injects UI into the host; it renders nothing itself.
   return (
