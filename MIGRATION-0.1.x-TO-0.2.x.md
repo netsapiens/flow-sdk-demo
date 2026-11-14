@@ -947,10 +947,10 @@ own redundancy.
 
 ## 6.3 Two more headers, and one that can be absent
 
-| Header                      | Answers                                                                                                                                  | Availability                                  |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `X-NS-Platform-Assertion`   | Which cluster is calling. RS256, signed by the instance, verified against its published JWKS. `aud` is your vendor id, `sub` the app id. | Always, for a configured cluster              |
-| `X-NS-Cluster-Verification` | Whether that cluster is entitled to this app. Issued by NetSapiens Insight.                                                              | Needs a live Insight call — **may be absent** |
+| Header                      | Answers                                                                                                                                                                            | Availability                                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `X-NS-Platform-Assertion`   | Which cluster is calling. RS256, signed by the instance, verifiable against its published JWKS. `aud` is your vendor id, `sub` the app id; the reference backend does not read it. | Always, for a configured cluster              |
+| `X-NS-Cluster-Verification` | Whether that cluster is entitled to this app. Issued by NetSapiens Insight.                                                                                                        | Needs a live Insight call — **may be absent** |
 
 Previously only the second existed, and because it can legitimately be missing, a
 backend could neither require it nor safely ignore it. If you want a public-key

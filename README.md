@@ -560,10 +560,10 @@ the request. Your backend:
 1. Verifies the `X-NS-Signature` HMAC — `sha256=<hex>` over
    `"<X-NS-Timestamp>." + the raw request body`, using the shared callback secret.
    Hash the bytes **before parsing**; `JSON.stringify(req.body)` will not match.
-   (Two RS256 JWTs give secret-less proof against published JWKS:
-   `X-NS-Platform-Assertion`, always present, says which cluster is calling;
-   `X-NS-Cluster-Verification`, which may be absent, adds NetSapiens' own
-   attestation.)
+   (The webhook also carries `X-NS-Cluster-Verification`, an RS256 JWT from
+   NetSapiens INSight that may be absent: the reference backend verifies it
+   against INSight's published JWKS when present and proceeds on the HMAC
+   when it is not.)
 2. Exchanges the code (PKCE) at the `validation_endpoint` from the payload for a
    token that proves the user's identity — and uses the identity from **that
    response**, not the webhook body.
