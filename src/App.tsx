@@ -51,7 +51,11 @@ import type { ZoneMarkerProps } from './integration/withZoneTestId';
 import { CrmStatusCell } from './columns/CrmStatusColumn';
 import { appApi, appSdk, appUserExtension } from './integration/appSdk';
 import { setHighlighting } from './integration/highlightExtensions';
-import { registerAppRoute, relabelRoutes } from './integration/routeLabels';
+import {
+  registerAppRoute,
+  relabelRoutes,
+  unregisterAppRoutes,
+} from './integration/routeLabels';
 import { withZoneTestId } from './integration/withZoneTestId';
 import {
   columnTestId,
@@ -807,6 +811,10 @@ export default function App(flowContext: FlowContext) {
       sdk.unregisterWidget('sync-failures');
       sdk.unregisterWidget('partner-links');
       sdk.unregisterWidget('recorded-calls');
+      // The routes too: this effect re-runs when the user's extension or a
+      // page component changes, and each registerAppRoute above would
+      // otherwise register its id a second time.
+      unregisterAppRoutes(sdk);
     };
   }, [
     sdk,

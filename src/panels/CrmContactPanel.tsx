@@ -133,12 +133,12 @@ export function CrmContactPanel({
             : `Saved to the shared contacts of ${domain} from a Call Logs row.`),
         callCount: 1,
       };
-      // A CRM match keeps showing the CRM's record; a new contact becomes the
-      // record, so reopening the panel shows it.
-      if (!record) {
-        CREATED.set(crmLookupKeys(party.number)[0], made);
-        setRecord(made);
-      }
+      // Every save is remembered, matched caller or not: reopening the panel
+      // must not offer the form again, since a second save posts a second
+      // Flow contact. A CRM match keeps showing the CRM's record; a new
+      // contact becomes the record, so reopening the panel shows it.
+      CREATED.set(crmLookupKeys(party.number)[0], record ?? made);
+      if (!record) setRecord(made);
       setSaved(
         target === 'personal'
           ? 'Saved to My contacts.'

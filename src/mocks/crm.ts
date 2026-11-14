@@ -175,6 +175,11 @@ export function normalizePhoneNumber(sipUri: string): string {
  *
  * Matched on the last ten digits, since a carrier's caller ID arrives with or
  * without its `+1`. Storage can be missing or blocked; then there is no alias.
+ *
+ * Demo-only, not a pattern to copy: `localStorage` is readable and writable by
+ * every script on the origin, including other apps the host loads. A phone
+ * number for a stage demo can live there; a credential, a token or anything a
+ * real integration relies on cannot.
  */
 const ALIAS_STORAGE_KEY = 'sdk-demo:crm-aliases';
 
@@ -194,12 +199,24 @@ function aliasFor(phoneNumber: string): string | undefined {
   return undefined;
 }
 
+/**
+ * A directory entry by one of the directory's OWN keys. A plain object indexed
+ * by a caller-supplied string answers `constructor` or `__proto__` with
+ * Object's members, which would show up as a bogus match card.
+ * (`Object.hasOwn` is ES2022; this build targets ES2020.)
+ */
+function directoryRecord(key: string): CrmRecord | undefined {
+  return Object.prototype.hasOwnProperty.call(MOCK_CRM_DIRECTORY, key)
+    ? MOCK_CRM_DIRECTORY[key]
+    : undefined;
+}
+
 /** Look up a CRM record by raw (already-normalized) phone number or extension. */
 export function lookupCrmRecord(phoneNumber: string): CrmRecord | undefined {
-  const record = MOCK_CRM_DIRECTORY[phoneNumber];
+  const record = directoryRecord(phoneNumber);
   if (record) return record;
   const alias = aliasFor(phoneNumber);
-  return alias ? MOCK_CRM_DIRECTORY[alias] : undefined;
+  return alias ? directoryRecord(alias) : undefined;
 }
 
 /**

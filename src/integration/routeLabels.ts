@@ -61,6 +61,16 @@ export function registerAppRoute(sdk: RemoteAppSDK, config: RouteConfig) {
   return sdk.registerRoute(labelled(config));
 }
 
+/**
+ * Withdraw every route `registerAppRoute` registered, for the registering
+ * effect's cleanup: the effect re-runs when its inputs change, and a route
+ * left registered would be registered a second time under the same id.
+ */
+export function unregisterAppRoutes(sdk: RemoteAppSDK) {
+  for (const config of registered) sdk.unregisterRoute(config.id);
+  registered.length = 0;
+}
+
 /** Re-register every route with `locale`'s labels; a no-op if unchanged. */
 export function relabelRoutes(sdk: RemoteAppSDK, locale: string | undefined) {
   const next = appLanguage(locale);
