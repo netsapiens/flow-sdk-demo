@@ -1,0 +1,450 @@
+# Flow SDK 0.3.x → 0.4.x
+
+The guide for partners moving an app built on `@netsapiens/flow-sdk` 0.3.x to
+**0.4.x**: what changed, what to do, in what order, and where this demo does
+each step. The code here is written against `^0.4.0`.
+
+```bash
+npm install @netsapiens/flow-sdk@^0.4.0
+```
+
+Most of the work is in your **build and publish setup**, not your app code.
+Every step except the log-level option also works on SDK 0.3.8 and on older Flow
+hosts, so you can do the work first and move the dependency last. The earlier
+upgrade is in [MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md), and
+what it says still holds.
+
+Every step below was run on a real 0.3.8 app (this demo, as it was before the
+move) and checked with the 0.4.0 bundle verifier. The output quoted here is
+what that run printed.
+
+---
+
+## In one minute
+
+1. **Stamp your build.** The platform reads the app's name, version and author
+   from the first line of `remoteEntry.js`. Nobody types them into Flow any more.
+2. **Write API paths so the platform can read them.** It records which API
+   resources your app uses from the paths in your `api.get/post/put/delete`
+   calls, and will enforce that list. A path in a variable, a type argument on
+   the call, or a client not named `api` hides the call.
+3. **Keep the previous releases' chunks on your CDN**, or sessions open during
+   a release break.
+4. **Move your data to `context.storage`.** `localStorage`, `sessionStorage`
+   and IndexedDB are shared with every other app on the page.
+5. **Set the SDK log level in code.** The SDK no longer reads it from storage,
+   and production now defaults to `WARN`.
+6. **Expect copies, not shared objects.** Event payloads are frozen, each stream
+   subscriber gets its own copy of each frame, and query strings in API paths
+   are refused.
+
+---
+
+## Do I have to move now?
+
+**Not by a date, unlike 0.3.** An app on 0.3.6–0.3.8 keeps loading. What you
+get from moving now:
+
+- The two new verifier warnings (`app-manifest`, `api-path-not-literal`) go
+  away before they become enforcement.
+- Sessions survive your releases.
+- Your data stops sitting where every other app can read it.
+
+An app on an SDK **older than 0.3.6** loads but registers nothing (since
+2026-11-01). Move it now.
+
+---
+
+## Part 0 — See your work list before you change anything
+
+The 0.4.0 verifier runs against a build made with 0.3.x. Build as you do today,
+then run the new verifier **without changing your dependency**:
+
+```bash
+npm run build
+npx -p @netsapiens/flow-sdk@0.4.0 flow-verify-bundle ./dist
+```
+
+On this demo, still on 0.3.8, it printed:
+
+```
+[ warn ] app-manifest       the entry carries no `/*! flow-app {…} */` build stamp
+[ warn ] undeclared-files   1 .js file(s) in dist that remoteEntry.js does not load … main.6141ef1232f0bf87e35d.js
+[ note ] raw-web-storage    … in a bundled dependency
+                            node_modules/loglevel/lib/loglevel.js, node_modules/@netsapiens/flow-sdk/dist/index.js
+[ note ] api-resources      declared API resources: none (this bundle calls context.api nowhere)
+PASS — required checks satisfied (2 warnings).
+```
+
+How to read it:
+
+- **`app-manifest`** is Part 1.
+- **`api-resources: none`** on an app that does call the API means the
+  analyser can't see your calls. That's Part 2, and it's the one most worth
+  fixing early. No warning is printed for it.
+- **`raw-web-storage` in `@netsapiens/flow-sdk`** is 0.3.x reading its old
+  log-level key. It goes away when you upgrade (Part 5). If it names **your**
+  files, that's Part 4.
+- **`undeclared-files`** for an extra entry chunk such as `main.*.js` is
+  harmless: the platform never fetches it.
+
+---
+
+## Part 1 — The build stamp
+
+The platform reads `/*! flow-app {"name":…,"version":…,"author":…} */` from
+line one of `remoteEntry.js`. Generate it from `package.json` so it can't
+drift:
+
+```js
+// webpack.config.js
+const webpack = require('webpack');
+const pkg = require('./package.json');
+
+const stamp = { name: pkg.name, version: pkg.version, author: pkg.author };
+// JSON.stringify silently drops an undefined field, so fail the build instead.
+for (const [field, value] of Object.entries(stamp)) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`package.json "${field}" is required for the build stamp`);
+  }
+}
+
+// in plugins, beside the subresource-integrity plugin:
+new webpack.BannerPlugin({
+  banner: `/*! flow-app ${JSON.stringify(stamp)} */`,
+  raw: true,
+  test: /remoteEntry\.js$/,
+  stage: webpack.Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_SIZE + 1,
+}),
+```
+
+**The `stage` line is not optional.**
+
+| `stage`                                  | Result                                                                                         |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| default                                  | The minifier moves the `/*!` comment into `remoteEntry.js.LICENSE.txt`; the stamp never ships. |
+| `PROCESS_ASSETS_STAGE_SUMMARIZE`         | The banner is added after the source map is written, so every mapping is one line off.         |
+| `PROCESS_ASSETS_STAGE_OPTIMIZE_SIZE + 1` | After minification, before the source map. Both come out right.                                |
+
+This demo shipped with `SUMMARIZE` for a while. The verifier passes it, so
+check the map yourself (below).
+
+**Rules**
+
+- `version` is plain `x.y.z`, at most 50 characters. Bump it whenever the
+  bytes change. If you forget, the platform moves the patch number on by itself:
+  the app keeps working, but under a number you didn't choose.
+- `author` is at most 255 characters. Add `"author"` to `package.json` if it's
+  missing. This demo's was, and the guard above stopped the build with
+  `package.json "author" is required for the build stamp`.
+- You no longer type a version or author into Registered Apps, and a deploy
+  request no longer needs a `version`.
+
+**Check it**
+
+```bash
+head -c 120 dist/remoteEntry.js   # /*! flow-app {"name":"…","version":"…","author":"…"} */
+node -p "JSON.parse(require('fs').readFileSync('dist/remoteEntry.js.map', 'utf8')).mappings.slice(0, 3)"   # starts with ;
+```
+
+The map's `mappings` string must start with `;`, which means the banner line
+maps to nothing. If it starts with a letter, your `stage` is wrong.
+
+---
+
+## Part 2 — API paths the platform can read
+
+When you submit a version, the platform reads the paths your code passes to the
+API client and records which resources (`users`, `devices`, `callqueues`…) your
+app reads and writes. Administrators see that list, and the platform will
+enforce it: a call outside the list will be refused.
+
+It finds a call by a **plain pattern in your source**: the name `api`, a dot,
+the method, an opening parenthesis, then a string or template literal. Anything
+else is invisible, and only the first case below prints a warning:
+
+| You wrote                                                     | What the platform sees                                      |
+| ------------------------------------------------------------- | ----------------------------------------------------------- |
+| `api.get(path)`                                               | Warning `api-path-not-literal`: a call it can't scope       |
+| ``api.get<User[]>(`/domains/${d}/users`)``                    | **Nothing.** The type argument hides the call. No warning.  |
+| ``apiClient.get(`/domains/${d}/users`)``                      | **Nothing.** Only a client named `api` is read. No warning. |
+| ``api.get(`/domains/${d}/users`)``                            | `domains (read), users (read)`                              |
+| ``flowContext.api.post(`/domains/~/users/~/contacts`, body)`` | `contacts (write), domains (write), users (write)`          |
+
+So, for every call:
+
+1. **Write the path inline**, as a string or template literal, with `${…}`
+   only where an id goes. Repeating the path at each call is correct; moving it
+   into a helper function undoes the declaration.
+2. **Call it on something named `api`**: `api.get(…)`, `context.api.get(…)`,
+   `flowContext.api.get(…)`. Rename a parameter such as `apiClient` to `api`.
+3. **Don't put a type argument on the call.** Type the result instead. Both of
+   these compile and are read correctly:
+
+   ```ts
+   const users: User[] = await api.get(`/domains/${d}/users`);
+
+   const users = await(api.get(`/domains/${d}/users`) as Promise<User[]>);
+   ```
+
+4. **No query string in the path.** A path containing `?` or `#` is
+   **refused** at runtime, not stripped. Pass query values as `params`:
+   ``api.get(`/domains/${d}/users`, { fields: 'user,name' })``.
+
+On this demo, fixing two calls this way took the verifier from
+`declared API resources: none` to `domains (read), users (read)`. The full app
+now declares seven resources.
+
+Also new at runtime:
+
+- The proxy sends a snapshot of the request body it validated. Changing the
+  object after the call has no effect.
+- Your app's scope is checked on every call, so an administrator's change
+  applies on the next call, without a reload.
+- Encoded slashes, `/../` and double encoding in a path are refused.
+
+---
+
+## Part 3 — Keep the previous releases' chunks
+
+Your remote entry URL is stable, and each release overwrites it. A session that
+loaded the **old** `remoteEntry.js` keeps it in memory, and the next time it
+needs a lazy chunk it asks for that chunk's **old** hashed filename. If your
+release deleted that file, the load fails and the session is broken until the
+user reloads.
+
+- **Add the missing files, never overwrite one.** Use `rsync
+--ignore-existing` or the equivalent. An overwrite puts old bytes under a
+  name the new entry pins.
+- **Hosts that replace the whole site** on each deploy (GitHub Pages through
+  `actions/deploy-pages`, for example) need the previous releases' chunks
+  downloaded and added to each new upload. This repository does that with
+  [`scripts/carry-forward-chunks.mjs`](./scripts/carry-forward-chunks.mjs): it
+  reads the live `release-files.json`, downloads the last two releases' chunks
+  that `dist/` lacks, and writes the new list. Copy it; the workflow step is in
+  [`.github/workflows/deploy-pages.yml`](./.github/workflows/deploy-pages.yml).
+- **Keeping the last two or three releases is enough.** Source maps don't need
+  to be kept: the platform reads maps only from the release being deployed.
+- Old `.js` files the new entry doesn't load produce only an
+  `undeclared-files` warning. The platform never fetches them.
+
+The first deploy with the script carries nothing (there's no
+`release-files.json` online yet). Every deploy after that carries the previous
+ones.
+
+---
+
+## Part 4 — Your data goes in `context.storage`
+
+The page's `localStorage`, `sessionStorage` and IndexedDB are shared with the
+host and with every other app on it. A key prefix is a convention another app
+can ignore. On Flow host 46.0 and later, the host keeps storage **for each app
+and each signed-in user**:
+
+```tsx
+// React: the value, a setter that persists it, and the first read's state
+const [prefs, setPrefs, { loading, error }] = useAppStorage(context, 'prefs', {
+  dense: false,
+});
+
+// Imperative. `storage` is absent on an older host, so feature-detect.
+await context.storage?.set('last-tab', 'calls');
+const tab = await context.storage?.get<string>('last-tab');
+
+// Memory only, synchronous, gone on reload: for anything you don't want on disk
+context.storage?.session.set('draft', text);
+```
+
+**Where it lives, and how long**
+
+- In the user's browser, in the host's own IndexedDB database. Not on a server.
+- It survives reloads and restarts in that browser. It doesn't follow the user
+  to another browser or device.
+- It's cleared on sign-out, when the signed-in user changes, and when an
+  administrator clears your app.
+- In a private window, where IndexedDB isn't available, the host keeps it in
+  memory and logs a warning.
+- It separates honest apps from each other, but it isn't a sandbox: code on the
+  page could open that database directly. Keep anything sensitive, such as
+  tokens, on your own server or in `storage.session`.
+
+**Limits**: 64 KB per value, 500 keys and 2 MB per user. Going over one rejects
+with an error whose `code` is `STORAGE_QUOTA_EXCEEDED`. Values must be
+JSON-serialisable. `useAppStorage` rolls a failed write back. On a host without
+storage it keeps the value in memory and warns once.
+
+**If the old code read storage synchronously**, load once at startup into a
+module-level cache and keep the lookups synchronous. This demo's presenter
+caller-ID aliases used to be read from `localStorage` on every lookup. Now:
+
+- `src/App.tsx` loads them once with `flowContext.storage?.get(…)`;
+- `src/mocks/crm.ts` keeps them in a cache that the lookups read;
+- the editor on **Manage › CRM Integration** saves them with `useAppStorage`
+  and updates the cache.
+
+Before the move the verifier printed
+`raw-web-storage … in your own source … src/mocks/crm.ts:190`. After it, only
+the `loglevel` line is left (Part 9).
+
+---
+
+## Part 5 — Set the log level in code
+
+0.3.x read the host's `ns_log_level` and `ns_ext_diag` keys from
+`localStorage`, which put a raw storage read into every app's bundle. In 0.4 the
+app sets the level, and the SDK reads nothing else for it:
+
+```tsx
+const { sdk } = useRemoteApp(flowContext, __MF_NAME__, { logLevel: 'INFO' });
+// The same option on createRemoteAppSDK(ctx, name, { logLevel })
+// and new RemoteAppSDK(ctx, name, { logLevel })
+
+sdk.setLogLevel('DEBUG'); // at runtime, for example behind your own settings toggle
+sdk.getLogLevel();
+```
+
+- The default is **`WARN` in production** (0.3.x was effectively `INFO`) and
+  `DEBUG` in a development build. If you relied on seeing registrations logged
+  in production, pass `logLevel: 'INFO'`.
+- **Add the option with the upgrade, not before**, if you use TypeScript. 0.3.8's
+  types don't have it, and the build fails with `TS2353: … 'logLevel' does not
+exist in type 'UseRemoteAppOptions'`. In plain JavaScript, 0.3.8 ignores it.
+- `window.__flowSDKLogger__` and `window.__setFlowSDKLogLevel__` are gone.
+  `__flowSDKDebug__` is gated and returns counts, not objects.
+
+---
+
+## Part 6 — What the host no longer shares
+
+Everything your app receives from the host is now a copy, or has passed a
+check. Code that relied on sharing more will notice:
+
+| Area                   | What changed                                                                                                                  | What to do                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Event payloads         | Frozen copies. Your app sees only its own events.                                                                             | Copy a payload before changing it. Writing to one throws in strict mode. |
+| Stream frames          | Each subscriber, and the replay cache, gets its own `structuredClone` of each frame. A frame that can't be cloned is dropped. | Don't share or change frames between handlers.                           |
+| A disabled app         | When an administrator disables your app, the API calls already in flight fail with 403 `App "<id>" is no longer enabled`.     | Handle `PERMISSION_DENIED` without retrying.                             |
+| Direct `/ns-api` calls | The host marks its own calls. Where the platform requires that marker, a cookie-authenticated call without it is refused.     | Always go through `context.api`.                                         |
+| Call control           | Answer, reject, transfer and DTMF need a grant, are rate-limited and are audited.                                             | Request the grant. Replies come back only under your own app id.         |
+| `api.getBaseUrl()`     | Still in 0.4.0, but it's being removed.                                                                                       | Stop calling it. Paths are relative to the API base already.             |
+
+---
+
+## Part 7 — Registration and routes
+
+- **`requiredPermissions`** must be an array of strings, or the manifest is
+  refused.
+- **Route slots:** a `(parentPath, path)` slot belongs to the first app that
+  registers it. A child route under another app's page is refused, at any
+  depth, and so is a page under which another app already has a child. You
+  can't withdraw a route the host owns.
+- **Literal pages** take precedence only over their own concrete prefix. A
+  `/manage/:domain` page can't hide another app's `/manage/acme` page.
+- **`registerRouteFromModule(routeConfig, moduleConfig)`** keeps its
+  signature, but it no longer looks your container up on `window`. It sends the
+  module name, and the host loads that module from the container registered
+  for your app, so ES-module entries work too.
+  - The promise resolves once the registration is sent.
+  - A module your container doesn't expose is refused **on the host**: look in
+    the host console and SDK Diagnostics, not in a `catch` in your app.
+  - It needs a Flow host with 0.4 module-route support. Confirm with your
+    NetSapiens contact before shipping an app that relies on it.
+- **Zones** pass your components data, not live host objects.
+
+---
+
+## Part 8 — Remote authentication
+
+Only if your app signs users in to a third party.
+
+- **The NetSapiens token your vendor receives is identity-only.** Only
+  `/oauth2/me` accepts it, and using it anywhere else returns 403 `[RA017]`. It
+  lives 60–600 seconds (600 by default) and can't be refreshed. Your vendor uses it
+  to confirm who the user is, not to call the NetSapiens API.
+- **Your own requests are unchanged.** The token your vendor returns to your app
+  is yours: call your own backend with `fetch` as before. 0.4 checks only calls
+  made through `context.api` and to `/ns-api`, and the host doesn't restrict
+  where an app may send requests. The host keeps that token in memory, per app,
+  and passes it straight to your handler. Keep it in memory or in
+  `context.storage?.session`, never in `localStorage`.
+- **Callback:** a public `https` URL, unless the platform has opted your URL
+  in. The webhook is signed (`X-NS-Signature`, HMAC-SHA256) with your app's
+  callback secret, at most 128 characters. If a callback is refused, `RA010`
+  says why.
+- **Vendor side:** refuse replays by the signed `request_id`, and pin the token
+  endpoint. [`examples/vendor-backend/`](./examples/vendor-backend/) does both.
+- **Limits:** starting a sign-in is rate-limited per user and app, and per app.
+  If the user changes before the sign-in completes, the late result is
+  discarded.
+- **503 `[RA017]`** when you start a sign-in means remote authentication isn't
+  set up on that cluster yet. Ask your NetSapiens contact.
+
+---
+
+## Part 9 — Upgrade, verify, ship
+
+```bash
+npm install @netsapiens/flow-sdk@^0.4.0
+npm run build
+npx flow-verify-bundle ./dist
+```
+
+This demo after the move:
+
+```
+[ warn ] undeclared-files   1 .js file(s) in dist that remoteEntry.js does not load … main.4b23818820cc2f5857cc.js
+[ note ] react-internals    … node_modules/react/cjs/react.production.js
+[ note ] raw-web-storage    … node_modules/loglevel/lib/loglevel.js
+[ note ] api-resources      declared API resources: agents (read), avatar (read), callqueues (read),
+                            contacts (write), devices (read), domains (read/write), users (read/write)
+PASS — required checks satisfied (1 warning).
+```
+
+Those three lines are expected on a clean 0.4.0 build and aren't about your
+code:
+
+| Line                    | Why                                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `note raw-web-storage`  | Inside the `loglevel` dependency. If it names `@netsapiens/flow-sdk`, you're still on 0.3.x.              |
+| `note react-internals`  | Inside React's production build.                                                                          |
+| `warn undeclared-files` | Only when `dist/` holds a `.js` file your entry never loads, such as an extra entry chunk. Never fetched. |
+
+Then release:
+
+1. **Bump `version`** in `package.json` (and anywhere you mirror it). The
+   stamp carries it to the platform. Publishing new bytes under an unchanged
+   version leaves the platform pinning the old hash, and every host stops
+   loading your app.
+2. **Publish** with the previous releases' chunks kept (Part 3).
+3. **Deploy the version** in Platform › UI SDK Management › Registered Apps,
+   or through the API. The version and author come from the stamp.
+
+---
+
+## Checklist
+
+- [ ] Ran the 0.4.0 verifier against the 0.3.x build and noted what it found (Part 0)
+- [ ] `package.json` has `name`, `version` and `author`
+- [ ] Line one of `dist/remoteEntry.js` is the `flow-app` stamp, and the map's `mappings` starts with `;`
+- [ ] Every API call is `api.<method>(` + an inline path: no variable path, no type argument, no other client name
+- [ ] `api-resources` lists every resource your app reads or writes
+- [ ] No `?` or `#` in an API path; query values are `params`
+- [ ] Your publish step keeps the previous releases' chunks and never overwrites a file
+- [ ] No app code calls `localStorage`, `sessionStorage`, `indexedDB`, `fetch('/ns-api…')`, `getBaseUrl()` or `__flowSDKLogger__`
+- [ ] No handler writes to an event payload or a stream frame
+- [ ] `@netsapiens/flow-sdk` is `^0.4.0`, and `logLevel` is set if you want more than warnings
+- [ ] `flow-verify-bundle` prints PASS with no `app-manifest` or `api-path-not-literal` warning
+- [ ] Version bumped and deployed
+
+## Where the demo does each of these
+
+| Change                                | File                                                                                                                                              |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Build stamp, its guard and `stage`    | `webpack.config.js`                                                                                                                               |
+| Typed API reads the analyser sees     | `src/pages/liveOperations/liveSeed.ts`, `src/pages/DomainCrmSyncPage.tsx`, `src/pages/showcase/sections/AvatarSection.tsx`, `src/api/callsApi.ts` |
+| Keeping previous releases' chunks     | `scripts/carry-forward-chunks.mjs`, `.github/workflows/deploy-pages.yml`                                                                          |
+| Version guard against the last push   | `.github/workflows/deploy-pages.yml`                                                                                                              |
+| `context.storage` and `useAppStorage` | `PresenterAliasesSection` in `src/pages/CrmIntegrationPage.tsx`; the startup load in `src/App.tsx`; the cache in `src/mocks/crm.ts`               |
+| `logLevel`                            | `useRemoteApp(…, { logLevel: 'INFO' })` in `src/App.tsx`                                                                                          |
+| Remote auth vendor backend            | `examples/vendor-backend/`                                                                                                                        |
+| Scaffolding a new 0.4 app             | `.claude/skills/create-flow-app/SKILL.md`                                                                                                         |

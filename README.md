@@ -18,6 +18,12 @@ matches Flow in light and dark mode.
 > `flowExtensionDemo`: a new app, so a server that ran the old one registers this
 > one fresh.
 
+> **Moving an app from SDK 0.3.x to 0.4.x?** Read
+> **[MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md)**: the build
+> stamp, API paths the platform can read, keeping previous releases' chunks,
+> `context.storage`, and the log level set in code. It starts with one command
+> that shows your app's work list before you change anything.
+
 > **Moving an app from SDK 0.2.x to 0.3.x?** Read
 > **[MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md)**: the package
 > rename, `sdk.streams` in place of `subscribeToCallEvents` / `subscribeToStream`,
@@ -43,10 +49,25 @@ matches Flow in light and dark mode.
 > the migration guide exists to explain. The skill is written against the same SDK
 > version this demo uses.
 
+## What's new in flow-sdk 0.4
+
+This demo runs on **`@netsapiens/flow-sdk` ^0.4.0**.
+[MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md) walks an app
+through the move, with the verifier output at each step, and ends with where
+the demo does each change:
+
+- the **build stamp** in `webpack.config.js`;
+- typed API reads written so the platform can declare them (`liveSeed.ts`);
+- previous releases' chunks kept across Pages deploys
+  (`scripts/carry-forward-chunks.mjs`);
+- `useAppStorage` for the presenter caller-ID aliases on **Manage › CRM
+  Integration**;
+- `logLevel` set in `src/App.tsx`.
+
 ## What's new in flow-sdk 0.3.x
 
-The SDK was renamed and gained live streaming in 0.3.x. This demo runs on
-**`@netsapiens/flow-sdk` ^0.3.8** and shows each change working. The SDK's own
+The SDK was renamed and gained live streaming in 0.3.x, and the demo shows
+each change working. The SDK's own
 README (its **Migration** section, `node_modules/@netsapiens/flow-sdk/README.md`)
 and `STREAMS.md` are the references, and
 [MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md) walks an app through

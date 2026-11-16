@@ -106,7 +106,7 @@ If the target directory exists, ask before overwriting.
   },
   "engines": { "node": ">=18" },
   "dependencies": {
-    "@netsapiens/flow-sdk": "^0.3.8",
+    "@netsapiens/flow-sdk": "^0.4.0",
     "loglevel": "^1.9.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -137,6 +137,17 @@ const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPl
 const { SubresourceIntegrityPlugin } = require('webpack-subresource-integrity');
 const webpack = require('webpack');
 const path = require('path');
+const pkg = require('./package.json');
+
+// The build stamp (flow-sdk 0.4): the platform reads the app's name, version and
+// author from the first line of remoteEntry.js, so nobody types them into Flow.
+// JSON.stringify drops an undefined field silently, so refuse to build instead.
+const stamp = { name: pkg.name, version: pkg.version, author: pkg.author };
+for (const [field, value] of Object.entries(stamp)) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`package.json "${field}" is required for the build stamp`);
+  }
+}
 
 // The ONE identifier you maintain — the Module Federation container name in
 // camelCase (must be a valid JS identifier). It is the federation `name`, it is
@@ -257,6 +268,15 @@ module.exports = (_env, argv) => {
         // 'react-dom/client': { singleton: true, requiredVersion: '^19.2.0', import: false },
       },
     }),
+    // The build stamp. `stage` is not optional: at the default stage the minifier
+    // moves the `/*!` comment into remoteEntry.js.LICENSE.txt, and at SUMMARIZE
+    // the banner lands after the source map and shifts every mapping a line.
+    new webpack.BannerPlugin({
+      banner: `/*! flow-app ${JSON.stringify(stamp)} */`,
+      raw: true,
+      test: /remoteEntry\.js$/,
+      stage: webpack.Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_SIZE + 1,
+    }),
     // REQUIRED in production. Emits the per-chunk integrity map the platform
     // needs: it pins remoteEntry.js with a hash it computes itself, and that one
     // pin transitively covers your whole chunk graph through these values.
@@ -338,6 +358,9 @@ import MainPage from './pages/MainPage';
 declare const __MF_NAME__: string;
 
 export default function App(flowContext: FlowContext) {
+  // The SDK logs WARN and above in production (DEBUG in a dev build). Pass
+  // `{ logLevel: 'INFO' }` as a third argument to see each registration, or
+  // call sdk.setLogLevel() at runtime. Nothing reads it from storage.
   const { sdk } = useRemoteApp(flowContext, __MF_NAME__);
 
   // The wrapper below is memoized with empty deps so the page keeps a STABLE
@@ -622,7 +645,7 @@ Your origin must be in the operator's **approved CDN origins** allowlist or the 
       -H "Content-Type: application/json" \
       -d '{ "remote_entry_url": "https://cdn.example.com/remoteEntry.js", "synchronous": "yes" }'
 
-`version` is optional: omitted, the patch component advances; supplied, it must be **greater** than the current one. Never send an `integrity_hash` — the platform computes it from the bytes it fetched, and the field is no longer accepted. The response carries `status` (`approved` / `flagged` / `rejected` / `dev` / `unchanged`), `has_chunk_sri`, `promoted`, and `report.findings[]`. **`approved` and `flagged` both load**; `rejected`, `pending` and `none` do not. A `409` means two deploys raced for the same version — retry. Deploys are rate-limited to 10 per minute per app.
+The **version and author shown in Registered Apps come from the build stamp** at the top of `remoteEntry.js` (see `webpack.config.js`), so bump `version` in `package.json` for every release. `version` is optional: omitted, the patch component advances; supplied, it must be **greater** than the current one. Never send an `integrity_hash` — the platform computes it from the bytes it fetched, and the field is no longer accepted. The response carries `status` (`approved` / `flagged` / `rejected` / `dev` / `unchanged`), `has_chunk_sri`, `promoted`, and `report.findings[]`. **`approved` and `flagged` both load**; `rejected`, `pending` and `none` do not. A `409` means two deploys raced for the same version — retry. Deploys are rate-limited to 10 per minute per app.
 
 ## Local development
 
@@ -691,6 +714,11 @@ jobs:
       # cheaper than failing after publish, when the CDN is already serving
       # bytes the platform will refuse.
       - run: npm run verify
+      # deploy-pages replaces the whole site, which would delete the previous
+      # releases' hashed chunks while open sessions still need them. Carry them
+      # forward: download the files dist/ lacks, never overwrite one. The demo's
+      # scripts/carry-forward-chunks.mjs does this; copy it.
+      - run: node scripts/carry-forward-chunks.mjs dist "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }
@@ -713,15 +741,18 @@ GitHub Pages already sends `Access-Control-Allow-Origin: *`, which satisfies the
 
 Keep these out of `src/` — they are content rules, and most are hard rejects:
 
-| Pattern                                                            | Verdict |
-| ------------------------------------------------------------------ | ------- |
-| `eval(...)`, `setTimeout('string')`                                | reject  |
-| the literal string `/ns-api/` (call the API through `context.api`) | reject  |
-| `document.cookie`                                                  | reject  |
-| `credentials: 'include'` on `fetch`                                | reject  |
-| `localStorage` keys prefixed `ns_`                                 | reject  |
-| frame-escape (`window.top`, `parent.location`)                     | reject  |
-| `new Function(...)`                                                | flag    |
+| Pattern                                                                                       | Verdict                                   |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `eval(...)`, `setTimeout('string')`                                                           | reject                                    |
+| the literal string `/ns-api/` (call the API through `context.api`)                            | reject                                    |
+| `document.cookie`                                                                             | reject                                    |
+| `credentials: 'include'` on `fetch`                                                           | reject                                    |
+| `localStorage` keys prefixed `ns_`                                                            | reject                                    |
+| any `localStorage` / `sessionStorage` / `indexedDB` — use `context.storage` (`useAppStorage`) | note (`raw-web-storage`), becoming a flag |
+| an API path that isn't written inline (`api.get(path)` with a variable)                       | warn (`api-path-not-literal`)             |
+| a `?` or `#` in an API path — pass query values as `params`                                   | refused at runtime                        |
+| frame-escape (`window.top`, `parent.location`)                                                | reject                                    |
+| `new Function(...)`                                                                           | flag                                      |
 
 Note the analyser's rule policy is operator-tunable, so a local pass is not a guarantee of acceptance.
 
@@ -806,8 +837,15 @@ await api.post('/domains/~/users/~/contacts', {
 // also: api.put<T>(path, data), api.delete<T>(path)
 ````
 
-- **Paths are relative to `/ns-api/v2`** (`api.getBaseUrl()` returns that). Pass
-  only the relative path; the host prepends the base and injects credentials.
+- **Paths are relative to `/ns-api/v2`.** Pass only the relative path; the host
+  prepends the base and injects credentials. Don't call `api.getBaseUrl()`: it is
+  still in 0.4.0 but is being removed.
+- **Write each path inline** at the call, as a string or template literal with
+  `${…}` only where an id goes. The platform reads those literals to record which
+  API resources the app uses; a path built in a variable or a helper can't be
+  read and is reported as `api-path-not-literal`.
+- **No query string in the path.** A path containing `?` or `#` is refused; pass
+  query values as request `params`.
 - **v2 REST only.** The proxy does not expose the host JWT, so the legacy
   `/ns-api/?object=…&action=…` endpoints are **not reachable** from a remote app.
   If a capability only exists on legacy, a v2 route has to be added server-side.
