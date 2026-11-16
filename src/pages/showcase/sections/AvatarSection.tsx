@@ -52,8 +52,12 @@ export default function AvatarSection() {
     if (!api || !domain || !extension) return;
 
     let cancelled = false;
-    api
-      .get<AvatarRendition[]>(`/domains/${domain}/users/${extension}/avatar`)
+    // A cast, not `api.get<T>(`, so the analyser sees the call (see liveSeed.ts).
+    (
+      api.get(`/domains/${domain}/users/${extension}/avatar`) as Promise<
+        AvatarRendition[]
+      >
+    )
       .then((renditions) => {
         if (cancelled) return;
         setPhoto(renditions?.[0]?.['path-large'] ?? null);
