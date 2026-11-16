@@ -28,7 +28,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2 # the version guard below diffs against the previous commit
+          # The version guard diffs against the tip of main before this push,
+          # which can be more than one commit back.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -46,12 +48,22 @@ jobs:
       # no finding, nothing in the portal explaining it. Hence a guard, not a
       # convention. A push that touches only documentation passes untouched.
       - name: Refuse to ship changed bytes under an unchanged version
+        env:
+          # The tip of main before this push. Comparing against HEAD~1 instead
+          # refuses a push of two commits whose first one bumped the version.
+          # Empty or all zeros on a manual run or a new branch: fall back to HEAD~1.
+          BEFORE: ${{ github.event.before }}
         run: |
-          PREV=$(git show HEAD~1:package.json 2>/dev/null | node -p "try{JSON.parse(require('fs').readFileSync(0,'utf8')).version}catch(e){''}" || echo "")
+          BASE=HEAD~1
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            BASE="$BEFORE"
+          fi
+          echo "comparing against $BASE"
+          PREV=$(git show "$BASE":package.json 2>/dev/null | node -p "try{JSON.parse(require('fs').readFileSync(0,'utf8')).version}catch(e){''}" || echo "")
           THIS=$(node -p "require('./package.json').version")
           [ -z "$PREV" ] && exit 0
           [ "$PREV" != "$THIS" ] && exit 0
-          git diff --quiet HEAD~1 HEAD -- src webpack.config.js package.json package-lock.json && exit 0
+          git diff --quiet "$BASE" HEAD -- src webpack.config.js package.json package-lock.json && exit 0
           echo "::error::Bundle inputs changed but the version is still $THIS. Bump it."
           exit 1
 
@@ -72,6 +84,14 @@ jobs:
       # Same seven checks the platform runs on submission — fail here, not there.
       - name: Verify bundle
         run: npm run verify
+
+      # actions/deploy-pages replaces the whole site, so a release would delete
+      # the previous releases' hashed chunks while sessions that loaded the old
+      # remoteEntry.js still need them. This downloads the last two releases'
+      # chunks that dist/ lacks (never overwriting a file) and records this
+      # release's list in dist/release-files.json for the next deploy.
+      - name: Carry forward the previous releases' chunks
+        run: node scripts/carry-forward-chunks.mjs dist "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/"
 
       # Stop Jekyll from stripping webpack's _-prefixed files.
       - name: Disable Jekyll
