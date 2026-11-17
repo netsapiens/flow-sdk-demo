@@ -188,8 +188,15 @@ So, for every call:
    ```
 
 4. **No query string in the path.** A path containing `?` or `#` is
-   **refused** at runtime, not stripped. Pass query values as `params`:
-   ``api.get(`/domains/${d}/users`, { fields: 'user,name' })``.
+   **refused** at runtime, not stripped: the path is what the platform checks
+   against your declared resources, so it carries the resource and nothing
+   else. Options travel separately:
+
+   | Call                   | Where the options go                                                                                                                                                             |
+   | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `api.get`              | The second argument, `params`, sent as the query string: ``api.get(`/domains/${d}/cdrs`, { start: 0, limit: 50, 'datetime-start': from })``. Leave out a key with no value.      |
+   | `api.post` / `api.put` | The request body. The API reads a write's options from the body, so ``api.post(`/domains/${d}/users`, { ...user, synchronous: 'yes' })``. Flow sends `synchronous` the same way. |
+   | `api.delete`           | Nothing yet: the call takes only a path.                                                                                                                                         |
 
 On this demo, fixing two calls this way took the verifier from
 `declared API resources: none` to `domains (read), users (read)`. The full app
