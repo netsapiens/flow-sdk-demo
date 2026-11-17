@@ -784,6 +784,37 @@ via `useRemoteApp()`. Page components read the live context with
 | `navigate`         | Navigate the host router                                              |
 | `ui`               | Themed MUI Aurora components + templates (PageTemplate, SidePanel, …) |
 
+## Calling the API — paths, query parameters and options
+
+`flowContext.api` goes through the host's audited proxy. The path names the
+resource and nothing else: a path containing `?` or `#` is **refused**, not
+stripped. Options travel beside it:
+
+| Call                                           | Where the options go                                    | Example                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `api.get(path, params)`                        | `params`, sent as the query string                      | ``api.get(`/domains/${d}/users/${u}/cdrs`, { 'datetime-start': from, 'datetime-end': to, start: 0, limit: 50 })`` |
+| `api.post(path, data)` / `api.put(path, data)` | the request body: the API reads a write's options there | ``api.post(`/domains/${d}/users`, { ...user, synchronous: 'yes' })``                                              |
+| `api.delete(path)`                             | none: it takes only a path                              | ``api.delete(`/domains/${d}/users/${u}`)``                                                                        |
+
+How `params` is sent:
+
+- Strings as they are; numbers and booleans as text. The API's yes/no options
+  expect `'yes'` / `'no'`, so pass those strings.
+- A key that is `undefined` or `null` is left out, so `{ start: maybeOffset }`
+  is safe. Older Flow hosts sent it as the text `undefined`, so leave it out
+  yourself if you support them.
+- An object, an array, `NaN` or `_method` is refused with an error naming the
+  key. Join a list yourself in the form the endpoint documents.
+
+Which parameters an endpoint accepts is in the NetSapiens API v2 reference.
+Write each path inline on a client named `api`, and type the result rather than
+the call, so the platform can declare what the app uses
+([MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md), Part 2).
+
+In this demo: `fields` on the CRM Sync page's user read
+(`src/pages/DomainCrmSyncPage.tsx`), and the reads that seed Live Operations
+(`src/pages/liveOperations/liveSeed.ts`).
+
 ## UI rule — never hand-roll a component
 
 Every visible element in `src/` comes from the host component kit handed over as

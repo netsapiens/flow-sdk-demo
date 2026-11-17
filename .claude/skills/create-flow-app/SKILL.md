@@ -844,8 +844,16 @@ await api.post('/domains/~/users/~/contacts', {
   `${…}` only where an id goes. The platform reads those literals to record which
   API resources the app uses; a path built in a variable or a helper can't be
   read and is reported as `api-path-not-literal`.
-- **No query string in the path.** A path containing `?` or `#` is refused; pass
-  query values as request `params`.
+- **No query string in the path.** A path containing `?` or `#` is refused, not
+  stripped. Options travel beside the path:
+  - **reads:** `api.get(path, params)` sends `params` as the query string —
+    pagination (`start`, `limit`), date filters (`datetime-start`,
+    `datetime-end`), `fields`. Values are strings, numbers or booleans
+    (yes/no options take `'yes'` / `'no'`); an `undefined` or `null` key is left
+    out; an object, array, `NaN` or `_method` is refused.
+  - **writes:** `api.post` / `api.put` take options in the body, where the API
+    reads them: `api.post(path, { ...record, synchronous: 'yes' })`.
+  - **deletes:** `api.delete(path)` takes only the path.
 - **v2 REST only.** The proxy does not expose the host JWT, so the legacy
   `/ns-api/?object=…&action=…` endpoints are **not reachable** from a remote app.
   If a capability only exists on legacy, a v2 route has to be added server-side.
