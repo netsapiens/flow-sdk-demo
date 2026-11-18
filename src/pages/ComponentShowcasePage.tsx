@@ -79,7 +79,9 @@ export default function ComponentShowcasePage({ ...marker }: ZoneMarkerProps) {
   const text = useAppText(SHOWCASE_TEXT);
   const { PageTemplate } = ui?.templates || {};
   const { Stack } = ui || {};
-  const [showCode, setShowCode] = useState(true);
+  // Off to start: the page opens as a gallery, and a developer turns the
+  // snippets on when they want to copy one.
+  const [showCode, setShowCode] = useState(false);
 
   if (!PageTemplate || !Stack) {
     return (

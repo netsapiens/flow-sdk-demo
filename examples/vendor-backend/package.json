@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "sign": "node scripts/sign.js"
+    "sign": "node scripts/sign.js",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.19.2",

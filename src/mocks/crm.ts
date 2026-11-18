@@ -164,9 +164,71 @@ export function normalizePhoneNumber(sipUri: string): string {
     .replace(/w$/, ''); // drop the trailing 'w' NetSapiens appends
 }
 
+/**
+ * Presenter aliases: a real phone that should ring in as one of the demo's
+ * accounts, so a live call on stage fills the caller card. A JSON map from a
+ * number to a directory key, kept in the app's own storage (`context.storage`,
+ * key `crm-aliases`) and edited on Manage > CRM Integration:
+ *
+ *   { "+1 555 010 0000": "+15551234567" }
+ *
+ * Matched on the last ten digits, since a carrier's caller ID arrives with or
+ * without its `+1`.
+ *
+ * Until 0.4 this was read from `localStorage`, which every script on the
+ * origin can read and write, and which the platform analyser reports as
+ * `raw-web-storage`. `context.storage` is the host's partition for this app
+ * and this signed-in user. Lookups here stay synchronous: `App.tsx` loads the
+ * map once at startup and the editor pushes every saved change through
+ * `setPresenterAliases`.
+ */
+export const PRESENTER_ALIASES_KEY = 'crm-aliases';
+
+export type PresenterAliases = Record<string, string>;
+
+let presenterAliases: PresenterAliases = {};
+
+/** Replace the cached alias map. Anything that is not a string map clears it. */
+export function setPresenterAliases(value: unknown): void {
+  presenterAliases = isAliasMap(value) ? { ...value } : {};
+}
+
+export function isAliasMap(value: unknown): value is PresenterAliases {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((v) => typeof v === 'string')
+  );
+}
+
+function aliasFor(phoneNumber: string): string | undefined {
+  const digits = phoneNumber.replace(/\D/g, '').slice(-10);
+  if (digits.length < 10) return undefined;
+  for (const [from, to] of Object.entries(presenterAliases)) {
+    if (from.replace(/\D/g, '').slice(-10) === digits) return to;
+  }
+  return undefined;
+}
+
+/**
+ * A directory entry by one of the directory's OWN keys. A plain object indexed
+ * by a caller-supplied string answers `constructor` or `__proto__` with
+ * Object's members, which would show up as a bogus match card.
+ * (`Object.hasOwn` is ES2022; this build targets ES2020.)
+ */
+function directoryRecord(key: string): CrmRecord | undefined {
+  return Object.prototype.hasOwnProperty.call(MOCK_CRM_DIRECTORY, key)
+    ? MOCK_CRM_DIRECTORY[key]
+    : undefined;
+}
+
 /** Look up a CRM record by raw (already-normalized) phone number or extension. */
 export function lookupCrmRecord(phoneNumber: string): CrmRecord | undefined {
-  return MOCK_CRM_DIRECTORY[phoneNumber];
+  const record = directoryRecord(phoneNumber);
+  if (record) return record;
+  const alias = aliasFor(phoneNumber);
+  return alias ? directoryRecord(alias) : undefined;
 }
 
 /**

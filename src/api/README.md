@@ -36,9 +36,9 @@ proxy. Each call's `party` is run through `normalizePhoneNumber` (from
 
 ## Exports
 
-| Export                                        | Kind     | Purpose                                                     |
-| --------------------------------------------- | -------- | ----------------------------------------------------------- |
-| `fetchRecentCalls(domain, userId, apiClient)` | function | Fetch + normalize the user's recent calls to `RecentCall[]` |
+| Export                                  | Kind     | Purpose                                                     |
+| --------------------------------------- | -------- | ----------------------------------------------------------- |
+| `fetchRecentCalls(domain, userId, api)` | function | Fetch + normalize the user's recent calls to `RecentCall[]` |
 
 ## Best-effort field mapping
 

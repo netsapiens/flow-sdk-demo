@@ -24,6 +24,7 @@ import { HeaderStatusBadge } from '../extensions/HeaderStatusBadge';
 import { OpenInCrmAction } from '../extensions/OpenInCrmAction';
 import { TableToolbarInfo } from '../extensions/TableToolbarInfo';
 import { TopbarCrmButton } from '../extensions/TopbarCrmButton';
+import { TopbarHighlightToggle } from '../extensions/TopbarHighlightToggle';
 import { withZoneTestId } from './withZoneTestId';
 import manifestJson from './zones.manifest.json';
 
@@ -131,6 +132,7 @@ const COMPONENTS: Record<
   'demo-header-status-badge': HeaderStatusBadge,
   'demo-table-toolbar-info': TableToolbarInfo,
   'demo-topbar-crm': TopbarCrmButton,
+  'demo-topbar-highlight': TopbarHighlightToggle,
 };
 
 export interface ExtensionRegistration {

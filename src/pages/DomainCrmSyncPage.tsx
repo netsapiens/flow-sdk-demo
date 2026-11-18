@@ -34,6 +34,7 @@ import {
 } from '@netsapiens/flow-sdk';
 
 import type { CrmRecord } from '../mocks/crm';
+import { markPanel } from '../integration/panelMarker';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
 import { MOCK_CRM_DIRECTORY } from '../mocks/crm';
 import { CrmRecordPanel } from '../panels/CrmRecordPanel';
@@ -136,10 +137,13 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
     setLiveError(null);
     setOverrides({});
 
-    api
-      .get<NetSapiensUser[]>(`/domains/${managing}/users`, {
+    // Typed by a cast, not `api.get<T>(`: the analyser that declares this app's
+    // API resources only recognises `api.get(` followed by the literal path.
+    (
+      api.get(`/domains/${managing}/users`, {
         fields: USER_FIELDS,
-      })
+      }) as Promise<NetSapiensUser[]>
+    )
       .then((users) => {
         if (cancelled) return;
         const mapped = (users ?? []).flatMap((u): Seat[] => {
@@ -198,13 +202,13 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
         subtitle: row.displayName,
         width: 'sm',
         icon: 'mdi:card-account-details-outline',
-        component: (props) => (
+        component: markPanel('crm-record', (props) => (
           <CrmRecordPanel
             {...props}
             row={row}
             onToggleLink={() => toggleLink(row)}
           />
-        ),
+        )),
       }),
     [open, toggleLink],
   );

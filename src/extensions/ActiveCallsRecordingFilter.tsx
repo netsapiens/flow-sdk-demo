@@ -43,12 +43,50 @@ function isQueued(r: Row): boolean {
 }
 
 /** The filters this chip group offers, in display order. */
-const FILTERS: { value: string; label: string; match: (r: Row) => boolean }[] =
-  [
-    { value: 'recorded', label: '● Recording', match: isRecording },
-    { value: 'held', label: '⏸ On hold', match: isOnHold },
-    { value: 'queued', label: '☎ In queue', match: isQueued },
-  ];
+const FILTERS: {
+  value: string;
+  label: string;
+  icon: string;
+  match: (r: Row) => boolean;
+}[] = [
+  {
+    value: 'recorded',
+    label: 'Recording',
+    icon: 'mdi:record-circle-outline',
+    match: isRecording,
+  },
+  {
+    value: 'held',
+    label: 'On hold',
+    icon: 'mdi:pause-circle-outline',
+    match: isOnHold,
+  },
+  {
+    value: 'queued',
+    label: 'In queue',
+    icon: 'mdi:account-clock-outline',
+    match: isQueued,
+  },
+];
+
+/**
+ * Type to match the toolbar's own buttons (Export, Filter, Columns) beside it.
+ * Flow's toggle buttons take the theme's `button` text style, bolder and
+ * capitalized, while its buttons override it; until the host's toggle theme
+ * matches, the group says so itself.
+ */
+const MATCH_TOOLBAR_BUTTONS = {
+  // A little air between the buttons, each with its own rounded corners
+  // rather than the group's joined edges.
+  gap: 0.5,
+  '& .MuiToggleButton-root': {
+    fontWeight: 600,
+    textTransform: 'none',
+    lineHeight: 1.429,
+  },
+  '& .MuiToggleButtonGroup-grouped, & .MuiToggleButtonGroup-grouped:not(:first-of-type), & .MuiToggleButtonGroup-grouped:not(:last-of-type)':
+    { borderRadius: 1, marginLeft: 0 },
+};
 
 export function ActiveCallsRecordingFilter({
   context,
@@ -74,7 +112,12 @@ export function ActiveCallsRecordingFilter({
       value={selected}
       exclusive
       onChange={handleChange}
-      options={FILTERS.map(({ value, label }) => ({ value, label }))}
+      options={FILTERS.map(({ value, label, icon }) => ({
+        value,
+        label,
+        icon,
+      }))}
+      sx={MATCH_TOOLBAR_BUTTONS}
     />
   );
 }

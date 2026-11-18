@@ -4,8 +4,9 @@
  * and POST it to the running server. Use with MOCK_MODE=1 so the server skips the cluster-JWT
  * verification and the live code exchange.
  *
- *   FLOW_CALLBACK_SECRET=test-secret MOCK_MODE=1 npm start   # terminal 1
- *   FLOW_CALLBACK_SECRET=test-secret npm run sign            # terminal 2
+ *   export FLOW_CALLBACK_SECRET=$(openssl rand -hex 32)      # both terminals
+ *   VENDOR_JWT_SECRET=$(openssl rand -hex 32) MOCK_MODE=1 npm start   # terminal 1
+ *   npm run sign                                             # terminal 2
  *
  * It does NOT send X-NS-Cluster-Verification, so it only works against a server
  * in MOCK_MODE. Real webhooks always carry both headers.

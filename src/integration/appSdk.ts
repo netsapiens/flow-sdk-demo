@@ -9,6 +9,22 @@
  * A module-level value inside your own bundle is the supported way to share
  * things between your own pieces, the same as the `onCallChanges()` emitter.
  */
-import type { RemoteAppSDK } from '@netsapiens/flow-sdk';
+import type { FlowApiClient, RemoteAppSDK } from '@netsapiens/flow-sdk';
 
 export const appSdk: { current: RemoteAppSDK | null } = { current: null };
+
+/**
+ * The host's authenticated API proxy (`flowContext.api`), for the same reason:
+ * side panels render outside FlowContextProvider and their context carries no
+ * API client. `App.tsx` sets it alongside `appSdk`.
+ */
+export const appApi: { current: FlowApiClient | null } = { current: null };
+
+/**
+ * The signed-in user's extension, from `useRemoteApp`. A side panel's context
+ * names the user by domain and login only, and a personal contact is filed
+ * under the extension.
+ */
+export const appUserExtension: { current: string | undefined } = {
+  current: undefined,
+};

@@ -3,6 +3,7 @@ const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPl
 const { SubresourceIntegrityPlugin } = require('webpack-subresource-integrity');
 const webpack = require('webpack');
 const path = require('path');
+const pkg = require('./package.json');
 
 // Single source of truth for the Module Federation container name. Used as the
 // ModuleFederationPlugin `name` AND injected via DefinePlugin as `__MF_NAME__`,
@@ -20,6 +21,18 @@ if (!/^[A-Za-z_$][\w$]*$/.test(MODULE_FEDERATION_NAME)) {
   throw new Error(
     `MF_NAME must be a JavaScript identifier, got "${MODULE_FEDERATION_NAME}"`,
   );
+}
+
+// The build stamp's three fields. JSON.stringify drops an undefined value
+// silently, so a package.json missing one would build a stamp the platform
+// registers with a blank, and nothing would say so. Refuse to build instead.
+const stamp = { name: pkg.name, version: pkg.version, author: pkg.author };
+for (const [field, value] of Object.entries(stamp)) {
+  if (typeof value !== 'string' || value.trim() === '') {
+    throw new Error(
+      `package.json "${field}" must be a non-empty string for the flow-app build stamp, got ${JSON.stringify(value)}`,
+    );
+  }
 }
 
 module.exports = (_env, argv) => {
@@ -136,6 +149,22 @@ module.exports = (_env, argv) => {
         // Inject the MF container name so App.tsx can reference it without
         // retyping the string — defined once above as MODULE_FEDERATION_NAME.
         __MF_NAME__: JSON.stringify(MODULE_FEDERATION_NAME),
+      }),
+      // The build stamp (SDK 0.4.0, NW-7): the platform reads the app's name,
+      // version and author from this banner at deploy; nobody types them into
+      // Flow. It sits inside the bytes the integrity pin covers. `stage` is
+      // required: webpack's default minifier extracts `/*!` comments into
+      // remoteEntry.js.LICENSE.txt before BannerPlugin's default stage, and
+      // `flow-verify-bundle` reports `app-manifest` when that happened. It must
+      // also run before the source map is written: at SUMMARIZE the banner
+      // lands after it and shifts every mapping down a line. OPTIMIZE_SIZE + 1
+      // is after the minifier and before the map, so `mappings` starts with
+      // `;` (the banner line maps to nothing).
+      new webpack.BannerPlugin({
+        banner: `/*! flow-app ${JSON.stringify(stamp)} */`,
+        raw: true,
+        test: /remoteEntry\.js$/,
+        stage: webpack.Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_SIZE + 1,
       }),
       new HtmlWebpackPlugin({
         template: './index.html',

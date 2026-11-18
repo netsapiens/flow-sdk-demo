@@ -60,17 +60,17 @@ auth.clearRemoteAuthToken('${VENDOR_ID}'); // sign out of the vendor`;
 const BACKEND_SNIPPET = `// Your backend webhook — the NetSapiens API POSTs a single-use CODE here
 // (not a token). Headers: X-NS-Request-ID, X-NS-Timestamp,
 // X-NS-Signature: sha256=<hex>, X-NS-Signature-Version: 2,
-// X-NS-Platform-Assertion: <RS256 JWT>, X-NS-Cluster-Verification: <RS256 JWT>.
+// X-NS-Platform-Assertion: <RS256 JWT> (received; the reference backend does
+// not read it), X-NS-Cluster-Verification: <RS256 JWT> (may be absent).
 // Body: { request_id, code, code_verifier, user: { uid, domain, displayName },
 //   vendor_id, app_id, platform: { client_id, client, cluster_id, ... },
 //   expires_in, validation_endpoint, timestamp, pkce_enabled }
 //
-// Capture the RAW body — signature v2 is an HMAC over the exact bytes, so
-// JSON.stringify(req.body) will not match.
-app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
-
-app.post('/flow/callback', async (req, res) => {
-  const { code, validation_endpoint } = req.body;
+// Take the RAW bytes and parse nothing until they verify — signature v2 is an
+// HMAC over the exact bytes, so JSON.stringify(req.body) will not match, and
+// an unsigned caller should never reach a JSON parser.
+app.post('/flow/callback', express.raw({ type: () => true, limit: '100kb' }), async (req, res) => {
+  const rawBody = req.body; // a Buffer
   const timestamp = req.get('X-NS-Timestamp');
 
   // 1. Verify the HMAC (v2). It signs "<timestamp>." + the RAW request body.
@@ -80,7 +80,7 @@ app.post('/flow/callback', async (req, res) => {
   const expected = crypto
     .createHmac('sha256', process.env.FLOW_CALLBACK_SECRET)
     .update(\`\${timestamp}.\`)
-    .update(req.rawBody)
+    .update(rawBody)
     .digest('hex');
   const ok =
     algo === 'sha256' &&
@@ -91,13 +91,22 @@ app.post('/flow/callback', async (req, res) => {
   // what stops a captured webhook being replayed.
   if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300)
     return res.status(401).json({ error: 'stale_timestamp' });
-  // HMAC is the required gate. X-NS-Platform-Assertion (always available, signed
-  // by the calling cluster) and X-NS-Cluster-Verification (NetSapiens-issued,
-  // may be absent) are RS256 JWTs verified against published JWKS.
+  // Verified bytes: now parse. Refuse a request_id seen inside the window
+  // (keyed on this SIGNED field, not the X-NS-Request-ID header).
+  const { request_id, code, validation_endpoint } = JSON.parse(rawBody);
+  if (!rememberRequestId(request_id))
+    return res.status(409).json({ error: 'duplicate_request' });
+  // The HMAC over "<timestamp>." + the raw body is the gate. The
+  // X-NS-Cluster-Verification JWT (RS256, NetSapiens-issued, may be absent) is
+  // an optional attestation: verify it against the published JWKS WHEN
+  // PRESENT, reject on failure, proceed on the HMAC when absent. The
+  // reference backend does not read X-NS-Platform-Assertion.
 
-  // 2. Exchange the code (PKCE) at the validation_endpoint for an NS token
-  //    that cryptographically proves the user's identity.
-  const nsToken = await exchangeCodeWithPkce(validation_endpoint, code);
+  // 2. Exchange the code (PKCE) at YOUR pinned token endpoint, once the
+  //    signed validation_endpoint agrees with it, for an NS token that proves
+  //    the user's identity.
+  const nsToken = await exchangeCodeWithPkce(
+    pinnedTokenEndpoint(validation_endpoint), code);
 
   // 3. Mint YOUR OWN vendor token, bound to the identity the exchange PROVED
   //    (nsToken.uid) — never the request body's user.uid. Return OAuth

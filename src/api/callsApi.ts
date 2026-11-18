@@ -98,16 +98,19 @@ function isNonRealCall(c: NetSapiensCdr): boolean {
 export async function fetchRecentCalls(
   domain: string,
   userId: string,
-  apiClient: FlowApiClient,
+  api: FlowApiClient,
 ): Promise<RecentCall[]> {
-  if (!apiClient) throw new Error('API client is not defined');
+  if (!api) throw new Error('API client is not defined');
   if (!domain) throw new Error('domain is required');
   if (!userId) throw new Error('userId is required');
 
   // User-scoped CDRs over REST. The host proxies this with the operator's
   // credentials; the remote only ever sees the relative path and the response.
-  const path = `/domains/${domain}/users/${userId}/cdrs`;
-  const cdrs = await apiClient.get<NetSapiensCdr[]>(path);
+  // Written inline, on a client named `api`, with no type argument: that is the
+  // shape the platform's analyser reads to declare this app's API resources.
+  const cdrs: NetSapiensCdr[] = await api.get(
+    `/domains/${domain}/users/${userId}/cdrs`,
+  );
 
   return (cdrs ?? [])
     .map((c, i): RecentCall | null => {

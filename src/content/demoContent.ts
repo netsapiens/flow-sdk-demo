@@ -129,7 +129,7 @@ export const ZONES: ZoneInfo[] = [
     zone: 'topbar-actions',
     desc: 'The global top app bar (every page).',
     usedFor:
-      'Example CRM launcher → contact search over the app’s own CRM in the side panel.',
+      'Example CRM launcher → contact search over the app’s own CRM in the side panel; and a Highlight extensions toggle that outlines every piece this app adds.',
   },
   {
     zone: 'platform-admin-dashboard-widgets',

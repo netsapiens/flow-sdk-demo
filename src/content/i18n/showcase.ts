@@ -1,10 +1,11 @@
 /**
  * The Component Showcase's own copy, in each language the app ships.
  *
- * Only the visible framing is here: the page header, the opening panel and the
- * group headings. The per-component prose further down, component names and
- * every code snippet stay English — component names are API, and snippets are
- * code. Words Flow already translates (Save, Apps, Templates, Localization…)
+ * Only the visible framing is here: the page header, the opening panel, the
+ * group headings, and the Typography & localization section — the one section
+ * about language, which has to change language to make its point. The other
+ * sections' prose, component names and every code snippet stay English —
+ * component names are API, and snippets are code. Words Flow already translates (Save, Apps, Templates, Localization…)
  * are NOT here: they come from `t(key)`, so they always match the host.
  *
  * `en` defines the shape; the other dictionaries must match it exactly, so a
@@ -84,6 +85,28 @@ const en = {
       'One hook, one destructure, one guard. The guard matters: your app may be mounted by a host that predates a component, so treat every one as optional and render a fallback rather than crashing the page.',
     tip: '💡 The one rule worth memorising: pass colours as palette paths (‘text.secondary’, ‘primary.main’, ‘divider’), never as hex and never read out of a theme object you captured earlier. A captured token is a snapshot of whichever mode was active when your app loaded, and it stops following the toggle.',
   },
+  typography: {
+    title: 'Typography & localization',
+    subtitle: 'The type scale, and where the words in it come from.',
+    samples: {
+      h4: 'Heading 4',
+      h5: 'Heading 5',
+      h6: 'Heading 6',
+      subtitle1: 'Subtitle 1',
+      subtitle2: 'Subtitle 2',
+      body1: 'Body 1 - Default body text',
+      body2: 'Body 2 - Smaller text',
+      caption: 'Caption text',
+    },
+    hostBody:
+      'The host hands your app its own translation function, already initialised and already holding every string the platform ships — over ten thousand keys in its common namespace alone. No i18next dependency, no bundle, no init.',
+    tryLead: 'Try it:',
+    tryBefore:
+      'pick another language from the flag in the top bar and the right-hand column changes under you, with no reload. Then pick',
+    tryAfter:
+      'from the same menu: every string the platform translates turns into its key. Anything that does not is the app’s own copy — translated from the app’s dictionaries where it ships one (this page’s header, its opening panel and this section), English elsewhere.',
+    tip: '💡 Reach for a host key before writing your own. Anything the platform already says — Save, Cancel, Status, Active — is translated into every locale Flow ships and stays that way; a string you hard-code is English forever, and reads as English in the middle of a translated page.',
+  },
 };
 
 export type ShowcaseText = typeof en;
@@ -158,6 +181,28 @@ const fr: ShowcaseText = {
       'Un crochet, une déstructuration, une garde. La garde compte : votre application peut être montée par un hôte plus ancien qu’un composant, alors traitez chacun comme facultatif et affichez une solution de repli plutôt que de faire planter la page.',
     tip: '💡 La seule règle à retenir : passez les couleurs comme chemins de palette (‘text.secondary’, ‘primary.main’, ‘divider’), jamais en hexadécimal ni lues dans un objet de thème capturé plus tôt. Un jeton capturé est un instantané du mode actif au chargement de votre application, et il cesse de suivre la bascule.',
   },
+  typography: {
+    title: 'Typographie et localisation',
+    subtitle: 'L’échelle typographique, et d’où viennent ses mots.',
+    samples: {
+      h4: 'Titre 4',
+      h5: 'Titre 5',
+      h6: 'Titre 6',
+      subtitle1: 'Sous-titre 1',
+      subtitle2: 'Sous-titre 2',
+      body1: 'Corps 1 - Texte courant par défaut',
+      body2: 'Corps 2 - Texte plus petit',
+      caption: 'Texte de légende',
+    },
+    hostBody:
+      'L’hôte fournit à votre application sa propre fonction de traduction, déjà initialisée et contenant déjà chaque chaîne livrée par la plateforme — plus de dix mille clés dans son seul espace de noms common. Aucune dépendance i18next, aucun paquet, aucune initialisation.',
+    tryLead: 'Essayez :',
+    tryBefore:
+      'choisissez une autre langue avec le drapeau de la barre supérieure et la colonne de droite change sous vos yeux, sans rechargement. Choisissez ensuite',
+    tryAfter:
+      'dans le même menu : chaque chaîne que la plateforme traduit devient sa clé. Tout ce qui ne change pas est le texte propre à l’application — traduit à partir des dictionnaires de l’application lorsqu’elle en fournit (l’en-tête de cette page, son panneau d’ouverture et cette section), en anglais ailleurs.',
+    tip: '💡 Utilisez une clé de l’hôte avant d’écrire la vôtre. Tout ce que la plateforme dit déjà — Enregistrer, Annuler, Statut, Actif — est traduit dans chaque langue livrée par Flow et le reste ; une chaîne codée en dur reste en anglais pour toujours, et se lit en anglais au milieu d’une page traduite.',
+  },
 };
 
 const es: ShowcaseText = {
@@ -228,6 +273,28 @@ const es: ShowcaseText = {
     apiBody:
       'Un hook, una desestructuración, una guarda. La guarda importa: tu aplicación puede montarse en un host anterior a un componente, así que trata cada uno como opcional y muestra una alternativa en lugar de romper la página.',
     tip: '💡 La única regla que vale la pena memorizar: pasa los colores como rutas de paleta (‘text.secondary’, ‘primary.main’, ‘divider’), nunca en hexadecimal ni leídos de un objeto de tema capturado antes. Un token capturado es una instantánea del modo activo cuando cargó tu aplicación y deja de seguir el cambio.',
+  },
+  typography: {
+    title: 'Tipografía y localización',
+    subtitle: 'La escala tipográfica, y de dónde salen sus palabras.',
+    samples: {
+      h4: 'Encabezado 4',
+      h5: 'Encabezado 5',
+      h6: 'Encabezado 6',
+      subtitle1: 'Subtítulo 1',
+      subtitle2: 'Subtítulo 2',
+      body1: 'Cuerpo 1 - Texto de cuerpo predeterminado',
+      body2: 'Cuerpo 2 - Texto más pequeño',
+      caption: 'Texto de leyenda',
+    },
+    hostBody:
+      'El host entrega a tu aplicación su propia función de traducción, ya inicializada y con todas las cadenas que incluye la plataforma — más de diez mil claves solo en su espacio de nombres common. Sin dependencia de i18next, sin paquete, sin inicialización.',
+    tryLead: 'Pruébalo:',
+    tryBefore:
+      'elige otro idioma con la bandera de la barra superior y la columna de la derecha cambia al instante, sin recargar. Luego elige',
+    tryAfter:
+      'en el mismo menú: cada cadena que traduce la plataforma se convierte en su clave. Lo que no cambia es el texto propio de la aplicación — traducido de los diccionarios de la aplicación cuando los incluye (el encabezado de esta página, su panel inicial y esta sección), en inglés en el resto.',
+    tip: '💡 Usa una clave del host antes de escribir la tuya. Todo lo que la plataforma ya dice — Guardar, Cancelar, Estado, Activo — está traducido a cada idioma que incluye Flow y se mantiene así; una cadena escrita a mano queda en inglés para siempre, y se lee en inglés en medio de una página traducida.',
   },
 };
 

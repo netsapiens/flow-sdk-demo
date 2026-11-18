@@ -29,6 +29,18 @@ export const CRM_INTEGRATION_COPY = {
   mappingTitle: 'Field mapping',
   mappingDescription:
     'How Flow fields line up with CRM fields. A mapping belongs to the connection, so every syncing domain uses this one.',
+  aliasesTitle: 'Presenter caller-ID aliases',
+  aliasesDescription:
+    'Make a real phone ring in as one of the sample CRM accounts, so a live call fills the caller card. Kept in this app’s own storage for you only (context.storage, flow-sdk 0.4).',
+  aliasesLabel: 'Aliases (JSON: number → sample account number)',
+  aliasesSave: 'Save aliases',
+  aliasesSaved:
+    'Saved. Calls from these numbers now match their sample account.',
+  aliasesNotJson: 'That isn’t valid JSON.',
+  aliasesNotMap:
+    'Use an object whose values are all strings, such as { "+1 555 010 0000": "+15551234567" }.',
+  aliasesNoStorage:
+    'This Flow host has no app storage (it needs host 46.0 or later), so these aliases last only until the page reloads.',
   aboutTitle: 'Where this page fits',
   about: [
     'This page is registered into the Manage menu (after Call Logs) by a remote app through the Flow SDK — no host changes, and not limited to the Apps menu. It sits at plain /manage, so it is the same page for everyone: the place an administrator sees the CRM link itself.',
