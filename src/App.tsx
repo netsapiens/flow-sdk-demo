@@ -63,6 +63,7 @@ import {
   routeTestId,
   widgetTestId,
 } from './integration/zones';
+import { PRESENTER_ALIASES_KEY, setPresenterAliases } from './mocks/crm';
 import { crmStatusOf } from './mocks/crmStatus';
 import ComponentShowcasePage from './pages/ComponentShowcasePage';
 import CrmIntegrationPage from './pages/CrmIntegrationPage';
@@ -153,7 +154,25 @@ export default function App(flowContext: FlowContext) {
   // used as the ModuleFederationPlugin `name`, so the container name lives in one
   // place. The SDK derives the kebab app id ('flow-extension-demo') from it for
   // registry attribution.
-  const { sdk, user, theme, locale } = useRemoteApp(flowContext, __MF_NAME__);
+  //
+  // `logLevel` (flow-sdk 0.4): the app sets how much the SDK logs. Nothing reads
+  // it from storage or a window hook any more. INFO logs each registration
+  // succeeding or failing, which is what a demo is for; a production app would
+  // leave the WARN default and turn it up with sdk.setLogLevel() when needed.
+  const { sdk, user, theme, locale } = useRemoteApp(flowContext, __MF_NAME__, {
+    logLevel: 'INFO',
+  });
+
+  // Presenter caller-ID aliases live in the app's own storage (host 46.0+).
+  // Loaded once here so the CRM lookups that use them can stay synchronous;
+  // `storage` is absent on an older host, so feature-detect.
+  useEffect(() => {
+    flowContext.storage
+      ?.get(PRESENTER_ALIASES_KEY)
+      .then(setPresenterAliases)
+      .catch(() => setPresenterAliases(undefined));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // For declared actions, which get no SDK handle (integration/appSdk.ts).
   appSdk.current = sdk;
   appApi.current = flowContext.api;

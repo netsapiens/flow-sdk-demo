@@ -143,9 +143,12 @@ export async function loadSeed(
   api: FlowApiClient,
   domain: string,
 ): Promise<LiveSeed> {
-  const queueRows = await api
-    .get<CallQueueRow[]>(`/domains/${domain}/callqueues`)
-    .catch(() => [] as CallQueueRow[]);
+  // Each read is typed by a cast rather than `api.get<T>(`: the platform's
+  // analyser declares API resources from `api.get(` + a literal path, and a
+  // type argument between the two hides the call from it.
+  const queueRows = await (
+    api.get(`/domains/${domain}/callqueues`) as Promise<CallQueueRow[]>
+  ).catch(() => [] as CallQueueRow[]);
   // A domain this size makes the per-agent and per-phone reads too heavy to
   // take on every page open (one agent row per queue membership: thousands),
   // and the page cannot show that many people anyway. Skip them; agents and
@@ -167,12 +170,12 @@ export async function loadSeed(
   const [agentRows, deviceRows] = big
     ? [[] as AgentRow[], [] as DeviceRow[]]
     : await Promise.all([
-        api
-          .get<AgentRow[]>(`/domains/${domain}/agents`)
-          .catch(() => [] as AgentRow[]),
-        api
-          .get<DeviceRow[]>(`/domains/${domain}/devices`)
-          .catch(() => [] as DeviceRow[]),
+        (api.get(`/domains/${domain}/agents`) as Promise<AgentRow[]>).catch(
+          () => [] as AgentRow[],
+        ),
+        (api.get(`/domains/${domain}/devices`) as Promise<DeviceRow[]>).catch(
+          () => [] as DeviceRow[],
+        ),
       ]);
   const queues = (queueRows ?? []).filter((r) => r?.callqueue);
   const agents = (agentRows ?? []).filter(

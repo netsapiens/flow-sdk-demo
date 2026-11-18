@@ -137,10 +137,13 @@ export default function DomainCrmSyncPage({ ...marker }: ZoneMarkerProps) {
     setLiveError(null);
     setOverrides({});
 
-    api
-      .get<NetSapiensUser[]>(`/domains/${managing}/users`, {
+    // Typed by a cast, not `api.get<T>(`: the analyser that declares this app's
+    // API resources only recognises `api.get(` followed by the literal path.
+    (
+      api.get(`/domains/${managing}/users`, {
         fields: USER_FIELDS,
-      })
+      }) as Promise<NetSapiensUser[]>
+    )
       .then((users) => {
         if (cancelled) return;
         const mapped = (users ?? []).flatMap((u): Seat[] => {

@@ -155,12 +155,16 @@ module.exports = (_env, argv) => {
       // Flow. It sits inside the bytes the integrity pin covers. `stage` is
       // required: webpack's default minifier extracts `/*!` comments into
       // remoteEntry.js.LICENSE.txt before BannerPlugin's default stage, and
-      // `flow-verify-bundle` reports `app-manifest` when that happened.
+      // `flow-verify-bundle` reports `app-manifest` when that happened. It must
+      // also run before the source map is written: at SUMMARIZE the banner
+      // lands after it and shifts every mapping down a line. OPTIMIZE_SIZE + 1
+      // is after the minifier and before the map, so `mappings` starts with
+      // `;` (the banner line maps to nothing).
       new webpack.BannerPlugin({
         banner: `/*! flow-app ${JSON.stringify(stamp)} */`,
         raw: true,
         test: /remoteEntry\.js$/,
-        stage: webpack.Compilation.PROCESS_ASSETS_STAGE_SUMMARIZE,
+        stage: webpack.Compilation.PROCESS_ASSETS_STAGE_OPTIMIZE_SIZE + 1,
       }),
       new HtmlWebpackPlugin({
         template: './index.html',

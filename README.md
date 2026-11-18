@@ -18,6 +18,12 @@ matches Flow in light and dark mode.
 > `flowExtensionDemo`: a new app, so a server that ran the old one registers this
 > one fresh.
 
+> **Moving an app from SDK 0.3.x to 0.4.x?** Read
+> **[MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md)**: the build
+> stamp, API paths the platform can read, keeping previous releases' chunks,
+> `context.storage`, and the log level set in code. It starts with one command
+> that shows your app's work list before you change anything.
+
 > **Moving an app from SDK 0.2.x to 0.3.x?** Read
 > **[MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md)**: the package
 > rename, `sdk.streams` in place of `subscribeToCallEvents` / `subscribeToStream`,
@@ -43,10 +49,25 @@ matches Flow in light and dark mode.
 > the migration guide exists to explain. The skill is written against the same SDK
 > version this demo uses.
 
+## What's new in flow-sdk 0.4
+
+This demo runs on **`@netsapiens/flow-sdk` ^0.4.0**.
+[MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md) walks an app
+through the move, with the verifier output at each step, and ends with where
+the demo does each change:
+
+- the **build stamp** in `webpack.config.js`;
+- typed API reads written so the platform can declare them (`liveSeed.ts`);
+- previous releases' chunks kept across Pages deploys
+  (`scripts/carry-forward-chunks.mjs`);
+- `useAppStorage` for the presenter caller-ID aliases on **Manage › CRM
+  Integration**;
+- `logLevel` set in `src/App.tsx`.
+
 ## What's new in flow-sdk 0.3.x
 
-The SDK was renamed and gained live streaming in 0.3.x. This demo runs on
-**`@netsapiens/flow-sdk` ^0.3.8** and shows each change working. The SDK's own
+The SDK was renamed and gained live streaming in 0.3.x, and the demo shows
+each change working. The SDK's own
 README (its **Migration** section, `node_modules/@netsapiens/flow-sdk/README.md`)
 and `STREAMS.md` are the references, and
 [MIGRATION-0.2.x-TO-0.3.x.md](./MIGRATION-0.2.x-TO-0.3.x.md) walks an app through
@@ -762,6 +783,37 @@ via `useRemoteApp()`. Page components read the live context with
 | `theme` / `locale` | Host theme (`light`/`dark`) and i18next translation function          |
 | `navigate`         | Navigate the host router                                              |
 | `ui`               | Themed MUI Aurora components + templates (PageTemplate, SidePanel, …) |
+
+## Calling the API — paths, query parameters and options
+
+`flowContext.api` goes through the host's audited proxy. The path names the
+resource and nothing else: a path containing `?` or `#` is **refused**, not
+stripped. Options travel beside it:
+
+| Call                                           | Where the options go                                    | Example                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `api.get(path, params)`                        | `params`, sent as the query string                      | ``api.get(`/domains/${d}/users/${u}/cdrs`, { 'datetime-start': from, 'datetime-end': to, start: 0, limit: 50 })`` |
+| `api.post(path, data)` / `api.put(path, data)` | the request body: the API reads a write's options there | ``api.post(`/domains/${d}/users`, { ...user, synchronous: 'yes' })``                                              |
+| `api.delete(path)`                             | none: it takes only a path                              | ``api.delete(`/domains/${d}/users/${u}`)``                                                                        |
+
+How `params` is sent:
+
+- Strings as they are; numbers and booleans as text. The API's yes/no options
+  expect `'yes'` / `'no'`, so pass those strings.
+- A key that is `undefined` or `null` is left out, so `{ start: maybeOffset }`
+  is safe. Older Flow hosts sent it as the text `undefined`, so leave it out
+  yourself if you support them.
+- An object, an array, `NaN` or `_method` is refused with an error naming the
+  key. Join a list yourself in the form the endpoint documents.
+
+Which parameters an endpoint accepts is in the NetSapiens API v2 reference.
+Write each path inline on a client named `api`, and type the result rather than
+the call, so the platform can declare what the app uses
+([MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md), Part 2).
+
+In this demo: `fields` on the CRM Sync page's user read
+(`src/pages/DomainCrmSyncPage.tsx`), and the reads that seed Live Operations
+(`src/pages/liveOperations/liveSeed.ts`).
 
 ## UI rule — never hand-roll a component
 

@@ -42,9 +42,10 @@
  * remote — only the vendor token does.
  */
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
-import { useFlowContext, useLocale } from '@netsapiens/flow-sdk';
+import { useEffect, useMemo, useState } from 'react';
+import { useAppStorage, useFlowContext, useLocale } from '@netsapiens/flow-sdk';
 
+import type { PresenterAliases } from '../mocks/crm';
 import type { DomainSyncRow } from '../mocks/crmConnection';
 import {
   CONNECTION_STATE,
@@ -55,6 +56,11 @@ import {
   MAPPING_HEADINGS,
 } from '../content/crmIntegrationContent';
 import { type ZoneMarkerProps } from '../integration/withZoneTestId';
+import {
+  isAliasMap,
+  PRESENTER_ALIASES_KEY,
+  setPresenterAliases,
+} from '../mocks/crm';
 import {
   SAMPLE_CONNECTION,
   SAMPLE_DOMAIN_SYNC,
@@ -328,6 +334,8 @@ export default function CrmIntegrationPage({ ...marker }: ZoneMarkerProps) {
           </Paper>
         </Section>
 
+        <PresenterAliasesSection />
+
         {/* Footer — what this page is for, and which page is for the rest. */}
         <Paper rounded>
           <Typography variant='h6' gutterBottom>
@@ -343,6 +351,93 @@ export default function CrmIntegrationPage({ ...marker }: ZoneMarkerProps) {
         </Paper>
       </Stack>
     </PageTemplate>
+  );
+}
+
+/** Plenty for a stage demo, and far under the 64 KB per-value storage quota. */
+const ALIASES_TEXT_MAX = 4000;
+
+/**
+ * The presenter's caller-ID aliases (see `mocks/crm.ts`), edited here and kept
+ * in the app's own storage with `useAppStorage` (flow-sdk 0.4, host 46.0+).
+ * On an older host `context.storage` is absent: the hook keeps the value in
+ * memory and the section says it won't be kept.
+ */
+function PresenterAliasesSection() {
+  const flowContext = useFlowContext();
+  const [saved, save, { loading, error }] = useAppStorage<PresenterAliases>(
+    flowContext,
+    PRESENTER_ALIASES_KEY,
+    {},
+  );
+  const [text, setText] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  // Show what storage holds once the first read lands, and keep the CRM
+  // lookups in step with it.
+  useEffect(() => {
+    if (loading) return;
+    setPresenterAliases(saved);
+    setText(JSON.stringify(saved ?? {}, null, 2));
+  }, [loading, saved]);
+
+  const { Alert, Button, Stack, TextField, Typography } = flowContext.ui ?? {};
+  if (!Alert || !Button || !Stack || !TextField || !Typography) return null;
+
+  const onSave = async () => {
+    setStatus(null);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text || '{}');
+    } catch {
+      setProblem(COPY.aliasesNotJson);
+      return;
+    }
+    if (!isAliasMap(parsed)) {
+      setProblem(COPY.aliasesNotMap);
+      return;
+    }
+    setProblem(null);
+    try {
+      await save(parsed);
+      setPresenterAliases(parsed);
+      setStatus(COPY.aliasesSaved);
+    } catch (err) {
+      // useAppStorage has already rolled the value back.
+      setProblem(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <Section title={COPY.aliasesTitle} description={COPY.aliasesDescription}>
+      <Stack spacing={2}>
+        {!flowContext.storage ? (
+          <Alert severity='info'>{COPY.aliasesNoStorage}</Alert>
+        ) : null}
+        <TextField
+          label={COPY.aliasesLabel}
+          fullWidth
+          multiline
+          minRows={4}
+          value={text}
+          disabled={loading}
+          onChange={(e) => setText(e.target.value.slice(0, ALIASES_TEXT_MAX))}
+          helperText={
+            problem ??
+            error?.message ??
+            status ??
+            `${text.length}/${ALIASES_TEXT_MAX}`
+          }
+          error={Boolean(problem ?? error)}
+        />
+        <Stack direction='row' spacing={1}>
+          <Button variant='contained' onClick={onSave} disabled={loading}>
+            {COPY.aliasesSave}
+          </Button>
+        </Stack>
+      </Stack>
+    </Section>
   );
 }
 

@@ -166,35 +166,47 @@ export function normalizePhoneNumber(sipUri: string): string {
 
 /**
  * Presenter aliases: a real phone that should ring in as one of the demo's
- * accounts, so a live call on stage fills the caller card. Kept in the
- * presenter's browser, never in this public repo, as a JSON map from a number
- * to a directory key:
+ * accounts, so a live call on stage fills the caller card. A JSON map from a
+ * number to a directory key, kept in the app's own storage (`context.storage`,
+ * key `crm-aliases`) and edited on Manage > CRM Integration:
  *
- *   localStorage.setItem('sdk-demo:crm-aliases',
- *     JSON.stringify({ '+1 555 010 0000': '+15551234567' }));
+ *   { "+1 555 010 0000": "+15551234567" }
  *
  * Matched on the last ten digits, since a carrier's caller ID arrives with or
- * without its `+1`. Storage can be missing or blocked; then there is no alias.
+ * without its `+1`.
  *
- * Demo-only, not a pattern to copy: `localStorage` is readable and writable by
- * every script on the origin, including other apps the host loads. A phone
- * number for a stage demo can live there; a credential, a token or anything a
- * real integration relies on cannot.
+ * Until 0.4 this was read from `localStorage`, which every script on the
+ * origin can read and write, and which the platform analyser reports as
+ * `raw-web-storage`. `context.storage` is the host's partition for this app
+ * and this signed-in user. Lookups here stay synchronous: `App.tsx` loads the
+ * map once at startup and the editor pushes every saved change through
+ * `setPresenterAliases`.
  */
-const ALIAS_STORAGE_KEY = 'sdk-demo:crm-aliases';
+export const PRESENTER_ALIASES_KEY = 'crm-aliases';
+
+export type PresenterAliases = Record<string, string>;
+
+let presenterAliases: PresenterAliases = {};
+
+/** Replace the cached alias map. Anything that is not a string map clears it. */
+export function setPresenterAliases(value: unknown): void {
+  presenterAliases = isAliasMap(value) ? { ...value } : {};
+}
+
+export function isAliasMap(value: unknown): value is PresenterAliases {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.values(value).every((v) => typeof v === 'string')
+  );
+}
 
 function aliasFor(phoneNumber: string): string | undefined {
   const digits = phoneNumber.replace(/\D/g, '').slice(-10);
   if (digits.length < 10) return undefined;
-  try {
-    const raw = window.localStorage.getItem(ALIAS_STORAGE_KEY);
-    if (!raw) return undefined;
-    const aliases = JSON.parse(raw) as Record<string, string>;
-    for (const [from, to] of Object.entries(aliases)) {
-      if (from.replace(/\D/g, '').slice(-10) === digits) return to;
-    }
-  } catch {
-    // No storage, or not our JSON: no alias.
+  for (const [from, to] of Object.entries(presenterAliases)) {
+    if (from.replace(/\D/g, '').slice(-10) === digits) return to;
   }
   return undefined;
 }
