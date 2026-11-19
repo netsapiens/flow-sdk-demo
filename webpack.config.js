@@ -44,7 +44,7 @@ module.exports = (_env, argv) => {
     // Bundle verification (SDK 0.2.x) rejects a bundle with no source maps, and the
     // maps must carry `sourcesContent` — so never `noSources`, and dist/*.map ships.
     devtool: 'source-map',
-    // The ES-module entry (SDK 0.4.0, security audit SP-02 / D16): the container
+    // The ES-module entry (SDK 0.4.0): the container
     // is remoteEntry.js's own `get` and `init` exports, nothing is written to
     // `window`, and the host pins the entry through an import-map integrity
     // entry instead of a script tag. See MIGRATION-0.3.x-TO-0.4.x.md Part 2.

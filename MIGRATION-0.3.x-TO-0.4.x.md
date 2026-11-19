@@ -166,8 +166,7 @@ that name before your code runs, or read your container after it, and the host
 has to take the container off the window and clear the name behind it. In 0.4
 the entry can be an ES module instead: the container is the module's own `get`
 and `init` exports, nothing is written to `window`, and the host pins the entry
-through an import-map integrity entry rather than a script tag. That is the
-structural fix from the security audit (SP-02, decision D16). Classic script
+through an import-map integrity entry rather than a script tag. Classic script
 entries keep working, so this step is optional; it is the one that gives your
 app a container of its own.
 
@@ -242,9 +241,10 @@ FAIL — 3 required checks did not pass. Submitting now would be rejected.
   `already pinned on this page under a different integrity`) and takes effect
   on the next load, so bump the version and keep the previous release's
   chunks (Part 4), as you would anyway.
-- It needs a Flow host with 0.4 module-entry support. Confirm with your
-  NetSapiens contact before shipping a module entry; an older host finds no
-  container and loads nothing.
+- It needs Flow host `46.0.0-staging.690` or later and API `46.0.0-alpha.902`
+  or later. An older host finds no container and loads nothing; an older API
+  does not record the entry format, so the host would not try. Update your
+  sandbox's Flow host first, then ship the module entry.
 
 ---
 
