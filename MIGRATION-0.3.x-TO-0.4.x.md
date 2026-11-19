@@ -2,10 +2,11 @@
 
 The guide for partners moving an app built on `@netsapiens/flow-sdk` 0.3.x to
 **0.4.x**: what changed, what to do, in what order, and where this demo does
-each step. The code here is written against `^0.4.0`.
+each step. The demo's code is written against `^0.4.0`; install 0.4.1, the
+current release.
 
 ```bash
-npm install @netsapiens/flow-sdk@^0.4.0
+npm install @netsapiens/flow-sdk@^0.4.1
 ```
 
 Most of the work is in your **build and publish setup**, not your app code.
@@ -16,7 +17,9 @@ what it says still holds.
 
 Every step below was run on a real 0.3.8 app (this demo, as it was before the
 move) and checked with the 0.4.0 bundle verifier. The output quoted here is
-what that run printed.
+what that run printed. Use the 0.4.1 verifier: it also reads typed calls such as
+`api.get<User[]>(…)` and warns about an API client with another name, so on
+those two points its output differs from the 0.4.0 output quoted here (Part 3).
 
 ---
 
@@ -30,8 +33,8 @@ what that run printed.
    container of its own.
 3. **Write API paths so the platform can read them.** It records which API
    resources your app uses from the paths in your `api.get/post/put/delete`
-   calls, and will enforce that list. A path in a variable, a type argument on
-   the call, or a client not named `api` hides the call.
+   calls, and will enforce that list. A path in a variable or a client not
+   named `api` hides the call.
 4. **Keep the previous releases' chunks on your CDN**, or sessions open during
    a release break.
 5. **Move your data to `context.storage`.** `localStorage`, `sessionStorage`
@@ -61,17 +64,33 @@ An app on an SDK **older than 0.3.6** loads but registers nothing (since
 
 ---
 
+## What your Flow server needs
+
+If you test on your own sandbox, it needs these versions or later. Older
+servers still load a 0.4.x app, but without what is listed here.
+
+| Component                   | Minimum              | What it adds                                                                                                                                                                                                        |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| NS API v2                   | `46.0.0-alpha.902`   | Records the entry format of a deployed version, so a module entry (Part 2) loads. Bundle analyser 11: typed calls (`api.get<User[]>(…)`) are read and declared, and a client with another name is flagged (Part 3). |
+| Flow (`netsapiens-horizon`) | `46.0.0-staging.697` | Loads an ES-module entry (Part 2). `params` values are sent as checked text; an older host sends a key whose value is `undefined` as the text `undefined`.                                                          |
+
+On an older API, the platform still doesn't see a typed call even though the
+0.4.1 verifier on your machine does. Until your server is upgraded, type the
+result instead (Part 3, step 3).
+
+---
+
 ## Part 0 — See your work list before you change anything
 
-The 0.4.0 verifier runs against a build made with 0.3.x. Build as you do today,
+The 0.4.1 verifier runs against a build made with 0.3.x. Build as you do today,
 then run the new verifier **without changing your dependency**:
 
 ```bash
 npm run build
-npx -p @netsapiens/flow-sdk@0.4.0 flow-verify-bundle ./dist
+npx -p @netsapiens/flow-sdk@0.4.1 flow-verify-bundle ./dist
 ```
 
-On this demo, still on 0.3.8, it printed:
+On this demo, still on 0.3.8, the 0.4.0 verifier printed:
 
 ```
 [ warn ] app-manifest       the entry carries no `/*! flow-app {…} */` build stamp
@@ -87,7 +106,9 @@ How to read it:
 - **`app-manifest`** is Part 1.
 - **`api-resources: none`** on an app that does call the API means the
   analyser can't see your calls. That's Part 3, and it's the one most worth
-  fixing early. No warning is printed for it.
+  fixing early. Here, all of the demo's calls were typed (`api.get<T>(…)`) or
+  made on a client not named `api`. 0.4.0 saw neither and printed no warning.
+  0.4.1 reads the typed calls and prints `api-path-not-literal` for the others.
 - **`raw-web-storage` in `@netsapiens/flow-sdk`** is 0.3.x reading its old
   log-level key. It goes away when you upgrade (Part 6). If it names **your**
   files, that's Part 5.
@@ -241,10 +262,11 @@ FAIL — 3 required checks did not pass. Submitting now would be rejected.
   `already pinned on this page under a different integrity`) and takes effect
   on the next load, so bump the version and keep the previous release's
   chunks (Part 4), as you would anyway.
-- It needs Flow host `46.0.0-staging.690` or later and API `46.0.0-alpha.902`
-  or later. An older host finds no container and loads nothing; an older API
-  does not record the entry format, so the host would not try. Update your
-  sandbox's Flow host first, then ship the module entry.
+- It needs the server versions under
+  [What your Flow server needs](#what-your-flow-server-needs). An older host
+  finds no container and loads nothing; an older API does not record the entry
+  format, so the host would not try. Update your sandbox first, then ship the
+  module entry.
 
 ---
 
@@ -256,16 +278,17 @@ app reads and writes. Administrators see that list, and the platform will
 enforce it: a call outside the list will be refused.
 
 It finds a call by a **plain pattern in your source**: the name `api`, a dot,
-the method, an opening parenthesis, then a string or template literal. Anything
-else is invisible, and only the first case below prints a warning:
+the method, an optional type argument, an opening parenthesis, then a string or
+template literal. The table shows the 0.4.1 verifier and a platform on NS API v2
+`46.0.0-alpha.902` or later:
 
-| You wrote                                                     | What the platform sees                                      |
-| ------------------------------------------------------------- | ----------------------------------------------------------- |
-| `api.get(path)`                                               | Warning `api-path-not-literal`: a call it can't scope       |
-| ``api.get<User[]>(`/domains/${d}/users`)``                    | **Nothing.** The type argument hides the call. No warning.  |
-| ``apiClient.get(`/domains/${d}/users`)``                      | **Nothing.** Only a client named `api` is read. No warning. |
-| ``api.get(`/domains/${d}/users`)``                            | `domains (read), users (read)`                              |
-| ``flowContext.api.post(`/domains/~/users/~/contacts`, body)`` | `contacts (write), domains (write), users (write)`          |
+| You wrote                                                     | What the platform sees                                |
+| ------------------------------------------------------------- | ----------------------------------------------------- |
+| `api.get(path)`                                               | Warning `api-path-not-literal`: a call it can't scope |
+| ``api.get<User[]>(`/domains/${d}/users`)``                    | `domains (read), users (read)`                        |
+| ``apiClient.get(`/domains/${d}/users`)``                      | Warning `api-path-not-literal`. Declares nothing.     |
+| ``api.get(`/domains/${d}/users`)``                            | `domains (read), users (read)`                        |
+| ``flowContext.api.post(`/domains/~/users/~/contacts`, body)`` | `contacts (write), domains (write), users (write)`    |
 
 So, for every call:
 
@@ -274,8 +297,10 @@ So, for every call:
    into a helper function undoes the declaration.
 2. **Call it on something named `api`**: `api.get(…)`, `context.api.get(…)`,
    `flowContext.api.get(…)`. Rename a parameter such as `apiClient` to `api`.
-3. **Don't put a type argument on the call.** Type the result instead. Both of
-   these compile and are read correctly:
+3. **A type argument on the call is fine** with the 0.4.1 verifier and a
+   platform on NS API v2 `46.0.0-alpha.902` or later. On an older platform the
+   type argument hides the call, so type the result instead. These forms are
+   read by every version:
 
    ```ts
    const users: User[] = await api.get(`/domains/${d}/users`);
@@ -429,7 +454,7 @@ check. Code that relied on sharing more will notice:
 | A disabled app         | When an administrator disables your app, the API calls already in flight fail with 403 `App "<id>" is no longer enabled`.     | Handle `PERMISSION_DENIED` without retrying.                             |
 | Direct `/ns-api` calls | The host marks its own calls. Where the platform requires that marker, a cookie-authenticated call without it is refused.     | Always go through `context.api`.                                         |
 | Call control           | Answer, reject, transfer and DTMF need a grant, are rate-limited and are audited.                                             | Request the grant. Replies come back only under your own app id.         |
-| `api.getBaseUrl()`     | Still in 0.4.0, but it's being removed.                                                                                       | Stop calling it. Paths are relative to the API base already.             |
+| `api.getBaseUrl()`     | Still in 0.4.x, but it's being removed.                                                                                       | Stop calling it. Paths are relative to the API base already.             |
 
 ---
 
@@ -487,7 +512,7 @@ Only if your app signs users in to a third party.
 ## Part 10 — Upgrade, verify, ship
 
 ```bash
-npm install @netsapiens/flow-sdk@^0.4.0
+npm install @netsapiens/flow-sdk@^0.4.1
 npm run build
 npx flow-verify-bundle ./dist
 ```
@@ -504,7 +529,7 @@ This demo after the move:
 PASS — required checks satisfied (1 warning).
 ```
 
-Those four lines are expected on a clean 0.4.0 build and aren't about your
+Those four lines are expected on a clean 0.4.x build and aren't about your
 code:
 
 | Line                    | Why                                                                                                       |
@@ -528,17 +553,17 @@ Then release:
 
 ## Checklist
 
-- [ ] Ran the 0.4.0 verifier against the 0.3.x build and noted what it found (Part 0)
+- [ ] Ran the 0.4.1 verifier against the 0.3.x build and noted what it found (Part 0)
 - [ ] `package.json` has `name`, `version` and `author`
 - [ ] Line one of `dist/remoteEntry.js` is the `flow-app` stamp, and the map's `mappings` starts with `;`
 - [ ] If you moved to the ES-module entry: `dist/remoteEntry.js` ends with `export{… as get,… as init}` and the verifier prints `entry-format`, not `module-chunk-loading`
-- [ ] Every API call is `api.<method>(` + an inline path: no variable path, no type argument, no other client name
+- [ ] Every API call is `api.<method>(` + an inline path: no variable path, no other client name (and no type argument if your server's API is older than `46.0.0-alpha.902`)
 - [ ] `api-resources` lists every resource your app reads or writes
 - [ ] No `?` or `#` in an API path; query values are `params`
 - [ ] Your publish step keeps the previous releases' chunks and never overwrites a file
 - [ ] No app code calls `localStorage`, `sessionStorage`, `indexedDB`, `fetch('/ns-api…')`, `getBaseUrl()` or `__flowSDKLogger__`
 - [ ] No handler writes to an event payload or a stream frame
-- [ ] `@netsapiens/flow-sdk` is `^0.4.0`, and `logLevel` is set if you want more than warnings
+- [ ] `@netsapiens/flow-sdk` is `^0.4.1`, and `logLevel` is set if you want more than warnings
 - [ ] `flow-verify-bundle` prints PASS with no `app-manifest` or `api-path-not-literal` warning
 - [ ] Version bumped and deployed
 
