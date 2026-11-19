@@ -176,8 +176,19 @@ module.exports = (_env, argv) => {
   // must be published alongside the JS. The analyser reads your original source
   // through these; without them it cannot attribute findings and rejects.
   devtool: 'source-map',
+  // The ES-module entry (flow-sdk 0.4): the container is remoteEntry.js's own
+  // `get` and `init` exports, nothing is written to `window`, and the host pins
+  // the entry through an import-map integrity entry instead of a script tag.
+  // A classic script entry still loads; this is the shape that gives the app a
+  // container of its own (MIGRATION-0.3.x-TO-0.4.x.md Part 2).
+  experiments: { outputModule: true },
   output: {
     path: path.resolve(__dirname, 'dist'),
+    // REQUIRED with outputModule. Webpack's default for module output loads
+    // chunks with import(), which cannot carry an integrity value; the
+    // verifier fails the build as module-chunk-loading.
+    chunkFormat: 'array-push',
+    chunkLoading: 'jsonp',
     publicPath: isProduction ? 'auto' : 'http://localhost:<dev-port>/',
     filename: isProduction ? '[name].[contenthash].js' : '[name].js',
     chunkFilename: isProduction ? '[id].[contenthash].js' : '[id].js',
@@ -232,6 +243,8 @@ module.exports = (_env, argv) => {
     new ModuleFederationPlugin({
       name: MODULE_NAME,
       filename: 'remoteEntry.js',
+      // Module output for the container itself; see `experiments` above.
+      library: { type: 'module' },
       exposes: { './App': './src/App' },
       // Host-provided singletons only. Do NOT add `@netsapiens/flow-sdk` here:
       // sharing it fails the build outright with "contains unresolved integrity

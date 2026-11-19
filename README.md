@@ -809,7 +809,7 @@ How `params` is sent:
 Which parameters an endpoint accepts is in the NetSapiens API v2 reference.
 Write each path inline on a client named `api`, and type the result rather than
 the call, so the platform can declare what the app uses
-([MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md), Part 2).
+([MIGRATION-0.3.x-TO-0.4.x.md](./MIGRATION-0.3.x-TO-0.4.x.md), Part 3).
 
 In this demo: `fields` on the CRM Sync page's user read
 (`src/pages/DomainCrmSyncPage.tsx`), and the reads that seed Live Operations
