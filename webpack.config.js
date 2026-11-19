@@ -44,8 +44,19 @@ module.exports = (_env, argv) => {
     // Bundle verification (SDK 0.2.x) rejects a bundle with no source maps, and the
     // maps must carry `sourcesContent` — so never `noSources`, and dist/*.map ships.
     devtool: 'source-map',
+    // The ES-module entry (SDK 0.4.0, security audit SP-02 / D16): the container
+    // is remoteEntry.js's own `get` and `init` exports, nothing is written to
+    // `window`, and the host pins the entry through an import-map integrity
+    // entry instead of a script tag. See MIGRATION-0.3.x-TO-0.4.x.md Part 2.
+    experiments: { outputModule: true },
     output: {
       path: path.resolve(__dirname, 'dist'),
+      // Keep script-tag chunk loading under module output. Webpack's default
+      // for a module entry loads chunks with import(), which cannot carry an
+      // integrity value: the SRI map is emitted and never applied, and
+      // flow-verify-bundle fails the build (module-chunk-loading).
+      chunkFormat: 'array-push',
+      chunkLoading: 'jsonp',
       publicPath: isProduction ? 'auto' : 'http://localhost:5005/',
       filename: isProduction ? '[name].[contenthash].js' : '[name].js',
       chunkFilename: isProduction ? '[id].[contenthash].js' : '[id].js',
@@ -95,6 +106,8 @@ module.exports = (_env, argv) => {
       new ModuleFederationPlugin({
         name: MODULE_FEDERATION_NAME,
         filename: 'remoteEntry.js',
+        // Module output for the container itself; see `experiments` above.
+        library: { type: 'module' },
         exposes: {
           './App': './src/App',
           './pages/DemoPage': './src/pages/DemoPage',
