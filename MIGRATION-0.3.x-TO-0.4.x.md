@@ -485,10 +485,18 @@ check. Code that relied on sharing more will notice:
 
 Only if your app signs users in to a third party.
 
-- **The NetSapiens token your vendor receives is identity-only.** Only
-  `/oauth2/me` accepts it, and using it anywhere else returns 403 `[RA017]`. It
-  lives 60–600 seconds (600 by default) and can't be refreshed. Your vendor uses it
-  to confirm who the user is, not to call the NetSapiens API.
+- **The NetSapiens token your vendor receives is identity-only.** Exchanging
+  the code at the signed `validation_endpoint` returns a token whose `token_use`
+  is `remote_auth_identity`. It lives 60–600 seconds (600 by default) and can't
+  be refreshed. Your vendor uses it to confirm who the user is, not to call the
+  NetSapiens API.
+- **Read the user's role from `user_scope` in that exchange response.** The
+  token's own `scope` is `Remote Auth Identity`, and the identity endpoint
+  reports that, not the role.
+- **Only the identity endpoint accepts it:** `GET /ns-api/oauth2/me` with a
+  `Bearer` header (newer API builds also answer at `/ns-api/v2/oauth2/me`,
+  beside the token endpoint). Anywhere else returns 403 `[RA017]`; once it has
+  expired, 401 `[APP011]`.
 - **Your own requests are unchanged.** The token your vendor returns to your app
   is yours: call your own backend with `fetch` as before. 0.4 checks only calls
   made through `context.api` and to `/ns-api`, and the host doesn't restrict
@@ -499,13 +507,15 @@ Only if your app signs users in to a third party.
   in. The webhook is signed (`X-NS-Signature`, HMAC-SHA256) with your app's
   callback secret, at most 128 characters. If a callback is refused, `RA010`
   says why.
-- **Vendor side:** refuse replays by the signed `request_id`, and pin the token
-  endpoint. [`examples/vendor-backend/`](./examples/vendor-backend/) does both.
+- **Vendor side:** refuse replays by the signed `request_id`, and pin the
+  cluster's token endpoint (its configured callback name, not a single node).
+  [`examples/vendor-backend/`](./examples/vendor-backend/) does both.
 - **Limits:** starting a sign-in is rate-limited per user and app, and per app.
   If the user changes before the sign-in completes, the late result is
   discarded.
-- **503 `[RA017]`** when you start a sign-in means remote authentication isn't
-  set up on that cluster yet. Ask your NetSapiens contact.
+- **503 `[RA018]`** when you start a sign-in means the cluster has no public
+  hostname configured for remote authentication (older builds reported this as
+  `[RA017]`). The cluster operator sets it; nothing in your app changes.
 
 ---
 
